@@ -1,6 +1,6 @@
 ###############################################################################
 #  Copyright (c) 2021 by Luiz Resende Silva
-#  Released under the GNU General Public License; see License.md for details.
+#  Released under the GNU General Public License; see LICENSE.md for details.
 ################################################################################
 #  The functions below are constructed based on the environment Modified Frozen
 #  Lake by Michel Ma
