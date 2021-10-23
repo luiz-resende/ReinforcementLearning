@@ -316,7 +316,7 @@ def plotter_mean(data_xy, x_label="X Axis", y_label="Y Axis", graph_title="My Pl
             print("ERROR MESSAGE: %s" % (e))
 
 
-def argmax_rand(arr, use_random_argmax=False, rng=None):
+def argmax_rand(arr, use_random_argmax=False, rng=np.random.default_rng(59)):
     """
     Method to overcome numpy.argmax() limitation of deterministically return index of first occurrence of maximum value,
     i.e. the method ```argmax_rand()``` identifies the maximum value in an array and all its occurrences and randomly
