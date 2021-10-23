@@ -1,0 +1,627 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
+import tqdm
+import copy
+import urllib
+
+
+def import_github_script(URL=r'https://raw.githubusercontent.com/micklethepickle/modified-frozen-lake/main/frozen_lake.py',
+                         file_name='frozen_lake.py'):
+    """
+    Function retrieves python script from raw github and created an importable file with extension '.py'.
+
+    Parameters
+    ----------
+    URL : str, optional
+        URL address containing the file. The default is
+        r'https://raw.githubusercontent.com/micklethepickle/modified-frozen-lake/main/frozen_lake.py'.
+    file_name : str, optional
+        Name to be given to the downloaded file. The default is 'frozen_lake.py'.
+
+    Returns
+    -------
+    None.
+    """
+    # path = path + file_name
+    path = file_name
+    if (not os.path.isfile(path)):
+        raw_bytes = urllib.request.urlopen(URL).read()
+        raw_str = raw_bytes.decode("utf-8")
+        mode = 'x'
+        text_file = open(path, mode)
+        text_file.write(raw_str)
+        text_file.close()
+
+
+def plotter_mult(xy_data, x_label="X Axis", y_label="Y Axis", graph_title="My Plot", use_x_limits=False, x_limits=(0, 100),
+                 use_y_limits=False, y_limits=(0, 100), use_x_ticks=False, x_ticks=1, use_y_ticks=False, y_ticks=1,
+                 line_types=[], line_size=2, color_list=[], plot_legend=True, legend_loc='best', number_legend_cols=1,
+                 legend_font_size=1.0, use_log_scale_x=False, use_log_scale_y=False, figure_size=[9, 6],
+                 title_font_size=26, save_plot=False, save_directory="same"):
+    """
+    Function graphically represents the results of f(x) (up to 28 different functions) for a set of values x=(1,...,n).
+
+    Parameters
+    ----------
+    xy_data : pandas.DataFrame
+        Structure with labelled xy data points, where first column contains the x points and the subsequent columns the different f(x) values.
+    x_label : str, optional
+        Label for the x axis. The default is "X Axis".
+    y_label : str, optional
+        Label for the y axis. The default is "Y Axis".
+    graph_title : str, optional
+        Title for the plot. The default is "My Plot".
+    use_x_limits : bool, optional
+        Boolean flag to whether or not use preset minimum and maximum values for x axis. The default is False.
+    x_limits : tuple, optional
+        Tuple with the minimum and maximum limit values for the x axis. The default is (0, 100).
+    use_y_limits : bool, optional
+        Boolean flag to whether or not use preset minimum and maximum values for y axis. The default is False.
+    y_limits : tuple, optional
+        Tuple with the minimum and maximum limit values for the y axis. The default is (0, 100).
+    use_x_ticks : bool, optional
+        Boolean flag to whether or not use predefined minimum x axis increment unit. The default is False.
+    x_ticks : int, optional
+        X axis increment unit. The default is 1.
+    use_y_ticks : bool, optional
+        Boolean flag to whether or not use predefined minimum y axis increment unit. The default is False.
+    y_ticks : int, optional
+        Y axis increment unit. The default is 1.
+    line_types : list, optional
+        List with strings defining line types, e.g. ['-', '--', '.-']. The default is [].
+    line_size : int, optional
+        The integer number for line width. The default is 2.
+    color_list : list, optional
+        The list of strings for the colors, e.g. ['red', 'blue', 'green']. The default is [].
+    plot_legend : bool, optional
+        Flag to whether or not include the legend to the plot. The default is True.
+    legend_loc : str, optional
+        String for the legend location in the plot, e.g. {'best', 'upper right', 'upper left', 'lower left', 'lower right',
+        'right', 'center left', 'center right', 'lower center', 'upper center', 'center'}. The default is 'best'.
+    number_legend_cols : int, optional
+        Number of columns to divide legend. The default is 1.
+    legend_font_size : float, optional
+        Percentage of title_font_size to use as font size for legend. The default is 1.0.
+    use_log_scale : bool, optional
+        Boolean flag to whether or not use logarithm scale for the x axis. The default is False.
+    figure_size : list, optional
+        List with two int values representing figure size [width, hight]. The default is [15, 10].
+    title_font_size : int, optional
+        Title font size, which is also used for the axes title sizes (decreased by 4 units). The default is 26.
+    save_plot : bool, optional
+        Boolean flag to whether or not save the plot as a PNG file. The default is False.
+    save_directory : str, optional
+        Either "same" for saving in the same folder as the script or "C:\\...\\...\\..." directory where to save figures. The default is "".
+
+    Raises
+    ------
+    TypeError
+        Argument 'xy_data' passed is not a pandas.DataFrame!
+    ValueError
+        Argument 'xy_data' passed has more then 28 f(x) columns...
+    """
+    try:
+        if (not isinstance(xy_data, pd.DataFrame)):
+            raise TypeError("TypeError: Argument 'xy_data' passed is not a pandas.DataFrame!")
+        columns = list(xy_data.columns.values)
+        if (color_list == 0 or color_list == 1 or color_list == []):
+            color_list = ['#003f5c', '#2f4b7c', '#665191', '#a05195', '#d45087', '#f95d6a', '#ff7c43', '#ffa600',
+                          '#89023e', '#932829', '#924618', '#89610f', '#797820', '#648d40', '#47a069', '#15b097']
+        elif (color_list == 2):
+            color_list = ['#0e0e0e', '#797575', '#9e8eff', '#d74d74', '#242b89', '#4b6bc8', '#6e00bb', '#ba00ff',
+                          '#65442e', '#992828', '#da6201', '#ffc11b', '#168f77', '#7ecfce', '#6ba23e', '#bdd900']
+        else:
+            color_list = ['red', 'green', 'blue', 'orange', 'yellow', 'magenta', 'black', 'cyan']
+        if (len(line_types) == 0):
+            line_types = ['-', '-.', ':', '--']
+        if ((len(columns) - 1) > (len(color_list) * len(line_types))):
+            raise ValueError("ValueError: Argument 'xy_data' has more then %d f(x) columns. Increase unique colors or line types."
+                             % (len(color_list) * len(line_types)))
+        fig, ax = plt.subplots(figsize=figure_size)
+        ax.grid(True)
+        if (use_log_scale_x is True):
+            ax.set_xscale('log')
+        if (use_log_scale_y is True):
+            ax.set_yscale('log')
+        if (len(columns) <= (len(color_list) + 1)):
+            for i in range(len(columns) - 1):
+                plt.plot(columns[0], columns[i + 1], data=xy_data, marker='', linestyle=line_types[0], markersize=None,
+                         color=color_list[i], linewidth=line_size)
+        else:
+            cc = 0
+            lt = 0
+            for i in range(len(columns) - 1):
+                plt.plot(columns[0], columns[i + 1], data=xy_data, marker='', linestyle=line_types[lt],
+                         markerfacecolor=None, markersize=None, color=color_list[cc], linewidth=line_size)
+                cc += 1
+                if (cc == len(color_list)):
+                    lt += 1
+                    cc = 0
+                if (lt == len(line_types)):
+                    break
+        if (graph_title != ''):
+            plt.suptitle(graph_title, fontsize=title_font_size)
+        if(x_label == "X Axis"):
+            x_label = columns[0]
+        if (use_log_scale_x):
+            x_label = x_label + " (log scale)"
+        if (use_log_scale_y):
+            y_label = y_label + " (log scale)"
+        plt.xlabel(x_label, fontsize=(title_font_size - 4))
+        plt.ylabel(y_label, fontsize=(title_font_size - 4))
+        if (use_x_limits):
+            plt.xlim(x_limits[0], x_limits[1])
+            if(use_x_ticks):
+                ax.xaxis.set_ticks(np.arange(x_limits[0], x_limits[1], x_ticks))
+        elif (use_x_ticks):
+            ax.xaxis.set_ticks(np.arange(xy_data[columns[0]].min(), xy_data[columns[0]].max(), x_ticks))
+        if (use_y_limits):
+            plt.ylim(y_limits[0], y_limits[1])
+            if (use_y_ticks):
+                ax.yaxis.set_ticks(np.arange(y_limits[0], y_limits[1], y_ticks))
+        elif (use_y_ticks):
+            ax.yaxis.set_ticks(np.arange(xy_data.iloc[:, 1:].min().min(), xy_data.iloc[:, 1:].max().max(), y_ticks))
+        if (plot_legend):
+            plt.legend(loc=legend_loc, fancybox=True, framealpha=1, shadow=True, borderpad=1, ncol=number_legend_cols,
+                       fontsize=int(title_font_size * legend_font_size))
+        plt.show()
+        if (save_plot):
+            timestr = time.strftime("%y-%m-%d_%Hh%Mm%Ss_")
+            file_name = graph_title.replace('\\', "").replace('$', "").replace(' ', "").replace('vs.', "").replace(':', "_")
+            if (save_directory == "same"):
+                plt.savefig(timestr + file_name + ".png")
+            else:
+                plt.savefig(save_directory + "/" + timestr + file_name + ".png")
+    except Exception as e:
+        if (type(e) == TypeError or type(e) == ValueError):
+            print(e)
+        else:
+            print("UnknownError: Problem while running 'plotter_mult()'. Please, review arguments passed...")
+            print("ERROR MESSAGE: %s" % (e))
+
+
+def plotter_mean(data_xy, x_label="X Axis", y_label="Y Axis", graph_title="My Plot", root_name='newcolumn', plot_std_dev=True,
+                 alpha=0.2, use_x_limits=False, x_limits=(0, 100), use_y_limits=False, y_limits=(0, 100),
+                 use_x_ticks=False, x_ticks=1, use_y_ticks=False, y_ticks=1, colors='#003f5c', marker_type='', mark_size=None,
+                 line_type='-', line_size=2, plot_legend=True, legend_loc='best', legend_font_size=1.0, use_log_scale=False,
+                 figure_size=[9, 6], title_font_size=20, save_plot=False, save_directory="same"):
+    """
+    Function takes as input a pandas.DataFrame containing different f(x), calculates their mean and standard deviation and
+    plots the results.
+
+    Parameters
+    ----------
+    data_xy : pandas.DataFrame
+        Structure with labelled xy data points, where first column contains the x points and the subsequent columns the different f(x) values.
+    x_label : str, optional
+        Label for the x axis. The default is "X Axis".
+    y_label : str, optional
+        Label for the y axis. The default is "Y Axis".
+    graph_title : str, optional
+        Title for the plot. The default is "My Plot".
+    root_name : str, optional
+        String with root name for new columns. The default is 'newcolumn'.
+    plot_std_dev : bool, optional
+        Flag to whether or not plot standard deviation, The default is True.
+    alpha : float, optional
+        Percentage of 'seethrough' on standard dev, color. The default is 0.2.
+    use_x_limits : bool, optional
+        Boolean flag to whether or not use preset minimum and maximum values for x axis. The default is False.
+    x_limits : tuple, optional
+        Tuple with the minimum and maximum limit values for the x axis. The default is (0, 100).
+    use_y_limits : bool, optional
+        Boolean flag to whether or not use preset minimum and maximum values for y axis. The default is False.
+    y_limits : tuple, optional
+        Tuple with the minimum and maximum limit values for the y axis. The default is (0, 100).
+    use_x_ticks : bool, optional
+        Boolean flag to whether or not use predefined minimum x axis increment unit. The default is False.
+    x_ticks : int, optional
+        X axis increment unit. The default is 1.
+    use_y_ticks : bool, optional
+        Boolean flag to whether or not use predefined minimum y axis increment unit. The default is False.
+    y_ticks : int, optional
+        Y axis increment unit. The default is 1.
+    colors : str, optional
+        String for the color to be used, e.g. {'red', 'green', 'blue', 'yellow', 'magenta', 'black', 'cyan'}. The default is 'red'.
+    marker_type : str, optional
+        String for the marker type, e.g. {'', '.', 'o', 'v', 'p', 'D', 's', '+'}. The default is '' (no marker).
+    mark_size : int, optional
+        Size of the marker if marker defined. The default is None.
+    line_type : str, optional
+        String for the line type to be used, e.g. {'-', '-.', ':', '--'}. The default is '-' (solid line).
+    line_size : int, optional
+        Line width to be used. The default is 2.
+    plot_legend : bool, optional
+        Flag to whether or not include the legend to the plot. The default is True.
+    legend_loc : str, optional
+        String for place where to plot legend, e.g. {'best', 'upper right', 'upper left', 'lower left', 'lower right',
+        'right', 'center left', 'center right', 'lower center', 'upper center', 'center'}. The default is 'best'.
+    legend_font_size : float, optional
+        Percentage of title_font_size to use as font size for legend. The default is 1.0.
+    use_log_scale : bool, optional
+        Boolean flag to whether or not use logarithm scale for the x axis. The default is False.
+    figure_size : list, optional
+        List with two int values representing figure size [width, hight]. The default is [15, 10].
+    title_font_size : int, optional
+        Title font size, which is also used for the axes title sizes (decreased by 4 units). The default is 26.
+    save_plot : bool, optional
+        Boolean flag to whether or not save the plot as a PNG file. The default is False.
+    save_directory : str, optional
+        Either "same" for saving in the same folder as the script or "C:\\...\\...\\..." directory where to save figures. The default is "".
+
+    Raises
+    ------
+    TypeError
+        Argument 'data_xy' passed is not a pandas.DataFrame!
+    """
+    try:
+        if (not isinstance(data_xy, pd.DataFrame)):
+            raise TypeError("TypeError: Argument 'data_xy' passed is not a pandas.DataFrame!")
+        fig, ax = plt.subplots(figsize=figure_size)
+        ax.grid(True)
+        if (use_log_scale is True):
+            ax.set_xscale('log')
+        data_xy['Avg. ' + root_name] = data_xy.iloc[:, 1:].mean(axis=1)
+        data_xy['Avg. ' + root_name + ' Std'] = data_xy.iloc[:, 1:-1].std(axis=1)
+        xy_data = data_xy.copy(deep=True)
+        xy_data['Avg. ' + root_name + r' + $\sigma$'] = xy_data['Avg. ' + root_name] + xy_data['Avg. ' + root_name + ' Std']
+        xy_data['Avg. ' + root_name + r' - $\sigma$'] = xy_data['Avg. ' + root_name] - xy_data['Avg. ' + root_name + ' Std']
+        columns = list(xy_data.columns.values)
+        plt.plot(columns[0], columns[-4], data=xy_data, marker=marker_type, linestyle=line_type,
+                 markersize=mark_size, color=colors, linewidth=line_size)
+
+        if (plot_std_dev):
+            plt.fill_between(columns[0], columns[-2], columns[-1], data=xy_data, label=(r'Avg. ' + root_name + r' $\pm$ $\sigma$'),
+                             linestyle=line_type, color=colors, linewidth=float(line_size / (1 * line_size)), alpha=alpha)
+
+        if (graph_title != ""):
+            plt.suptitle(graph_title, fontsize=title_font_size)
+        if (x_label == "X Axis"):
+            x_label = columns[0]
+        if (use_log_scale):
+            x_label = x_label + " (log scale)"
+        plt.xlabel(x_label, fontsize=(title_font_size - 4))
+        plt.ylabel(y_label, fontsize=(title_font_size - 4))
+        if (use_x_limits):
+            plt.xlim(x_limits[0], x_limits[1])
+            if(use_x_ticks):
+                ax.xaxis.set_ticks(np.arange(x_limits[0], x_limits[1], x_ticks))
+        elif (use_x_ticks):
+            ax.xaxis.set_ticks(np.arange(xy_data[columns[0]].min(), xy_data[columns[0]].max(), x_ticks))
+        if (use_y_limits):
+            plt.ylim(y_limits[0], y_limits[1])
+            if (use_y_ticks):
+                ax.yaxis.set_ticks(np.arange(y_limits[0], y_limits[1], y_ticks))
+        elif (use_y_ticks):
+            ax.yaxis.set_ticks(np.arange(xy_data.iloc[:, 1:].min().min(), xy_data.iloc[:, 1:].max().max(), y_ticks))
+        if (plot_legend):
+            plt.legend(loc=legend_loc, fancybox=True, framealpha=1, shadow=True, borderpad=1,
+                       fontsize=int(title_font_size * legend_font_size))
+        plt.show()
+        if (save_plot):
+            timestr = time.strftime("%y-%m-%d_%Hh%Mm%Ss_")
+            file_name = graph_title.replace('\\', "").replace('$', "").replace(' ', "").replace('vs.', "").replace(':', "_")
+            if (save_directory == "same"):
+                plt.savefig(timestr + file_name + ".png")
+            else:
+                plt.savefig(save_directory + "/" + timestr + file_name + ".png")
+    except Exception as e:
+        if (type(e) == TypeError or type(e) == ValueError):
+            print(e)
+        else:
+            print("UnknownError: Problem while running 'plotter_mean()'. Please, review arguments passed...")
+            print("ERROR MESSAGE: %s" % (e))
+
+
+def argmax_rand(arr, use_random_argmax=False, rng=None):
+    """
+    Method to overcome numpy.argmax() limitation of deterministically return index of first occurrence of maximum value,
+    i.e. the method ```argmax_rand()``` identifies the maximum value in an array and all its occurrences and randomly
+    selects one amongst those.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+        Array with values from which to identify the position of maximum value.
+    use_random_argmax : bool, optional
+        Flag to choose whether (True) or not (False) to use the random argmax selection amongst multiple equal maximum
+        values. The default is False.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator to choose randomly amongst multiple equal maximum values if option to use random argmax
+        is set to True. The default is None.
+
+    Returns
+    -------
+    indx : int
+        The select index position of the identified maximum value.
+    """
+    try:
+        if (use_random_argmax):
+            max_vals = np.max(arr)
+            max_indx = np.where(arr == max_vals)[0]
+            indx = rng.choice(max_indx)
+            return indx
+        else:
+            indx = np.argmax(arr)
+            return indx
+    except Exception as e:
+        print(e)
+
+
+def action_choice(policy_state, rng=np.random.default_rng(59), use_random_argmax=False, epsilon=None, env=None):
+    """
+    Function to retrieve action $a$ from the policy $\\pi$ mapping the probability distribution for actions at state $s$.
+
+    Parameters
+    ----------
+    policy_state : numpy.ndarray
+        Array of size # actions with the action probability $\\pi(a|s)$ for state $s$.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+    use_random_argmax : bool, optional
+        Flag to whether or not choose argmax action randomly if more than one maximum value action. The default is False.
+    epsilon : float, optional
+        The exploration probability. Used for selecting actions at random with probability $\\epsilon$. If set to None
+        the method chooses the action based on the policy $\\pi(a|s)$. The default is None.
+    env : frozen_lake.FrozenLakeEnv, optional
+        Object of type FrozenLakeEnv for the environment. The default is None.
+
+    Returns
+    -------
+    action_selectd : int
+        Integer from 0 to (#action-1) representing action $a$ selected from the policy $\\pi(a|s)$ for state $s$.
+    """
+    try:
+        number_actions = len(policy_state)
+        if (epsilon is None):
+            arr_of_actions = np.arange(number_actions, dtype=int)
+            action_selectd = rng.choice(arr_of_actions, p=policy_state)
+        else:
+            if (rng.random() < epsilon):
+                action_selectd = rng.integers(0, env.action_space.n, dtype=int)
+            else:
+                action_selectd = argmax_rand(policy_state, use_random_argmax=use_random_argmax, rng=rng)
+        return action_selectd
+    except Exception as e:
+        print(e)
+
+
+def e_soft_policy_state(q_s_a, epsilon=0.01, distributed=False, use_random_argmax=False, rng=np.random.default_rng(59)):
+    """
+    Helper method to calculate the e-soft/e-greedy policy at state $s$ given the action values $Q(s,a)$.
+
+    Parameters
+    ----------
+    q_s_a : numpy.ndarray
+        Array of size number_acitons with the action values for state $s$.
+    epsilon : float
+        Epsilon probability of exploration.
+    distributed : bool, optional
+        Flag to whether or not consider more than one greedy action (Q(s,a_{i}) = Q(s,a_{j})). The default is False.
+    use_random_argmax : bool, optional
+        Flag to whether or not choose argmax action randomly if more than one maximum value action. The default is False.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+
+    Returns
+    -------
+    e_policy_q : numpy.ndarray
+        Array of size number_actinos with e-soft policy for state $s$.
+    """
+    try:
+        number_actions = len(q_s_a)
+        e_policy_q = np.zeros(number_actions, dtype=float)
+        non_greed_p = (epsilon / float(number_actions))
+        if (distributed):
+            q_max = np.max(q_s_a)
+            greedy_acts = np.where(q_s_a == q_max)[0]
+        else:
+            greedy_acts = np.array([argmax_rand(q_s_a, use_random_argmax=use_random_argmax, rng=rng)])
+        greedy_prob = ((1.0 - epsilon) / float(greedy_acts.size))
+        for a in range(number_actions):
+            if (a in greedy_acts):
+                e_policy_q[a] = (greedy_prob + non_greed_p)
+            else:
+                e_policy_q[a] = non_greed_p
+        return e_policy_q
+    except Exception as e:
+        print(e)
+
+
+def greedify_policy(policy, use_random_argmax=False, rng=np.random.default_rng(59)):
+    """
+    Helper method to calculate greedy policy from e-soft/e-greedy policy.
+
+    Parameters
+    ----------
+    policy : numpy.ndarray
+        e-Soft policy to be greedified.
+    use_random_argmax : bool, optional
+        Flag to whether or not choose argmax action randomly if more than one maximum value action. The default is False.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+
+    Returns
+    -------
+    greedy_policy : numpy.ndarray
+        Greedy policy.
+    """
+    try:
+        greedy_policy = np.zeros(policy.shape, dtype=float)
+        for s in range(len(policy)):
+            greedy_a = argmax_rand(policy[s], use_random_argmax=use_random_argmax, rng=rng)
+            greedy_policy[s][greedy_a] = 1.0
+        return greedy_policy
+    except Exception as e:
+        print(e)
+
+
+def generate_episode(policy, env, render=True, rng=np.random.default_rng(59), get_isdone=False):
+    """
+    Function to generate episode given a policy $\\pi$ and an environment.
+
+    Parameters
+    ----------
+    policy : numpy.ndarray
+        Array of shape (#states, #actions) with the policy actions probabilities $\\pi(a|s)$ for each
+        state $s$ and action $a$.
+    env : frozen_lake.FrozenLakeEnv
+        Object of type FrozenLakeEnv for the environment.
+    render : bool, optional
+        Flag to whether or not to render the actions $a$ taken in the environment under policy $\\pi$. The default is True.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+    get_isdone : bool, optional
+        Flag to whether or not return array with boolean values for state is terminal or not. The default is False.
+
+    Returns
+    -------
+    states : numpy.ndarray
+        Array with the indecies of states visited.
+    actions : numpy.ndarray
+        Array with the actions $a$ taken under policy $\\pi$ for states $s$ visited.
+    rewards : numpy.ndarray
+        Array with the rewards $r(s,a,s')$.
+    """
+    try:
+        state = env.reset()  # Returns the initial state s=0
+        states, action, reward, isdone = ([], [], [], [])  # Creating empty lists
+        while True:
+            if (render):
+                env.render()
+            states.append(state)
+            action_s = action_choice(policy_state=policy[state], rng=rng)
+            action.append(action_s)
+            next_s, r, done, extra = env.step(action_s)
+            reward.append(float(r))
+            isdone.append(bool(done))
+            state = next_s
+            if(done):
+                break
+        states = np.array(states, dtype=int)
+        action = np.array(action, dtype=int)
+        reward = np.array(reward, dtype=float)
+        isdone = np.array(isdone, dtype=bool)
+        if (get_isdone):
+            return (states, action, reward, isdone)
+        else:
+            return (states, action, reward)
+    except Exception as e:
+        print(e)
+
+
+def generate_q_table_episode(q_s_a_table, env, epsilon=0.01, alpha=0.1, gamma=0.99, render=True, use_random_argmax=False,
+                             rng=np.random.default_rng(59), get_isdone=False, algorithm='q-learning'):
+    """
+    Function generates an epsisode given the current action value estimates $Q(s,a)$ and an environment. The actions values
+    are updated at each learning time step within the episode.
+
+    Parameters
+    ----------
+    q_s_a_table : numpy.ndarray
+        Array of shape (number_states, number_actions) with the estimated action values.
+    env : frozen_lake.FrozenLakeEnv
+        Object of type FrozenLakeEnv for the environment.
+    epsilon : float, optional
+        Factor for determining the probability of taking non-greedy actions. The default is 0.01.
+    alpha : float, optional
+        Step-size parameter. The default is 0.1.
+    gamma : float, optional
+        Discounting factor. The default is 0.99.
+    render : bool, optional
+        Flag to whether or not to render the actions $a$ taken in the environment under policy $\\pi$. The default is True.
+    use_random_argmax : bool, optional
+        Flag to whether or not choose argmax action randomly if more than one maximum value action. The default is False.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+    get_isdone : bool, optional
+        Flag to whether or not return array with boolean values for state is terminal or not. The default is False.
+    algorithm : str, optional
+        Keyword to choose between SARSA ('sarsa'), Expected SARSA ('expected-sarsa') or Q-Learning ('q-learning') algorithms
+        to update actions values $Q(s,a)$. The default is 'q-learning'.
+
+    Returns
+    -------
+    q_s_a_vals : numpy.ndarray
+        Array of shape (number_states, number_actions) with the updated action values at each time step.
+    states : numpy.ndarray
+        Array with the indecies of states visited.
+    actions : numpy.ndarray
+        Array with the actions $a$ taken under policy $\\pi$ for states $s$ visited.
+    rewards : numpy.ndarray
+        Array with the rewards $r(s,a,s')$.
+    """
+    try:
+        state = env.reset()  # Returns the initial state s=0
+        states, action, reward, isdone = ([], [], [], [])  # Creating empty lists
+        q_s_a_vals = q_s_a_table.copy()
+
+        if (algorithm == 'sarsa'):  # If SARSA algorithm, it starts by selecting action $s$ for $s_{0}$ from e-greedy
+            # state_policy_q = e_soft_policy_state(q_s_a_vals[state], epsilon=epsilon)
+            action_s = action_choice(policy_state=q_s_a_vals[state], rng=rng, use_random_argmax=use_random_argmax,
+                                     epsilon=epsilon, env=env)
+
+        while True:
+            if (render):
+                env.render()
+            states.append(state)
+
+            if ((algorithm == 'q-learning') or (algorithm == 'expected-sarsa')):
+                # state_policy_q = e_soft_policy_state(q_s_a_vals[state], epsilon=epsilon)
+                action_s = action_choice(policy_state=q_s_a_vals[state], rng=rng, use_random_argmax=use_random_argmax,
+                                         epsilon=epsilon, env=env)
+
+            action.append(action_s)  # In either algorithm the actions has been selected
+
+            next_s, r, done, extra = env.step(action_s)
+            reward.append(float(r))
+            isdone.append(bool(done))
+
+            if (algorithm == 'sarsa'):  # If SARSA, chooses an action $a'$ for the next state $s'$ and updates $Q(s,a)$ using $Q(s',a')$
+                # state_policy_q = e_soft_policy_state(q_s_a_vals[next_s], epsilon=epsilon)
+                a_next_s = action_choice(policy_state=q_s_a_vals[next_s], rng=rng, use_random_argmax=use_random_argmax,
+                                         epsilon=epsilon, env=env)
+                next_Q_val = 0.0
+                if (not done):
+                    next_Q_val = q_s_a_vals[next_s][a_next_s]
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * next_Q_val))))
+
+                action_s = a_next_s  # Assigning current action as action $a'$ for state $s'$
+
+            if (algorithm == 'expected-sarsa'):
+                prob_a_next_s = e_soft_policy_state(q_s_a_vals[next_s], epsilon=epsilon, distributed=True,
+                                                    use_random_argmax=use_random_argmax, rng=rng)  # Probabilities $\\pi(a|s')$
+                expect_next_s = 0.0
+                if (not done):
+                    expect_next_s = np.sum((prob_a_next_s * q_s_a_vals[next_s]))  # Expectation $sum{\\pi(a|s') * Q(s',a)}$
+
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * expect_next_s))))
+
+            if (algorithm == 'q-learning'):
+                next_Q_val = 0.0
+                if (not done):
+                    next_Q_val = np.max(q_s_a_vals[next_s])
+
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * next_Q_val))))
+
+            state = next_s
+
+            if(done):
+                break
+
+        states = np.array(states, dtype=int)
+        action = np.array(action, dtype=int)
+        reward = np.array(reward, dtype=float)
+        isdone = np.array(isdone, dtype=bool)
+        if (get_isdone):
+            return q_s_a_vals, states, action, reward, isdone
+        else:
+            return q_s_a_vals, states, action, reward
+    except Exception as e:
+        print(e)
