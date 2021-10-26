@@ -191,7 +191,7 @@ def plotter_mult(xy_data, x_label="X Axis", y_label="Y Axis", graph_title="My Pl
             print("ERROR MESSAGE: %s" % (e))
 
 
-def plotter_mean(data_xy, x_label="X Axis", y_label="Y Axis", graph_title="My Plot", root_name='newcolumn', plot_std_dev=True,
+def plotter_mean(data_xy, num_datasets=1, x_label="X Axis", y_label="Y Axis", graph_title="My Plot", root_name='newcolumn', plot_std_dev=True,
                  alpha=0.2, use_x_limits=False, x_limits=(0, 100), use_y_limits=False, y_limits=(0, 100),
                  use_x_ticks=False, x_ticks=1, use_y_ticks=False, y_ticks=1, colors='#003f5c', marker_type='', mark_size=None,
                  line_type='-', line_size=2, plot_legend=True, legend_loc='best', legend_font_size=1.0, use_log_scale=False,
@@ -204,6 +204,8 @@ def plotter_mean(data_xy, x_label="X Axis", y_label="Y Axis", graph_title="My Pl
     ----------
     data_xy : pandas.DataFrame
         Structure with labelled xy data points, where first column contains the x points and the subsequent columns the different f(x) values.
+    num_datasets : int, optional
+        The number of different datasets to calculated the mean and plot. The default is 1.
     x_label : str, optional
         Label for the x axis. The default is "X Axis".
     y_label : str, optional
@@ -266,24 +268,49 @@ def plotter_mean(data_xy, x_label="X Axis", y_label="Y Axis", graph_title="My Pl
         Argument 'data_xy' passed is not a pandas.DataFrame!
     """
     try:
-        if (not isinstance(data_xy, pd.DataFrame)):
+        if ((num_datasets == 1) and not isinstance(data_xy, pd.DataFrame)):
             raise TypeError("TypeError: Argument 'data_xy' passed is not a pandas.DataFrame!")
         fig, ax = plt.subplots(figsize=figure_size)
         ax.grid(True)
         if (use_log_scale is True):
             ax.set_xscale('log')
-        data_xy['Avg. ' + root_name] = data_xy.iloc[:, 1:].mean(axis=1)
-        data_xy['Avg. ' + root_name + ' Std'] = data_xy.iloc[:, 1:-1].std(axis=1)
-        xy_data = data_xy.copy(deep=True)
-        xy_data['Avg. ' + root_name + r' + $\sigma$'] = xy_data['Avg. ' + root_name] + xy_data['Avg. ' + root_name + ' Std']
-        xy_data['Avg. ' + root_name + r' - $\sigma$'] = xy_data['Avg. ' + root_name] - xy_data['Avg. ' + root_name + ' Std']
-        columns = list(xy_data.columns.values)
-        plt.plot(columns[0], columns[-4], data=xy_data, marker=marker_type, linestyle=line_type,
-                 markersize=mark_size, color=colors, linewidth=line_size)
+        if (num_datasets > 1):
+            for d in range(num_datasets):
+                if (('Avg. ' + root_name[d]) in list(data_xy[d].columns)):
+                    data_xy[d].drop(labels=('Avg. ' + root_name[d]), inplace=True)
+                if (('Avg. ' + root_name[d] + ' Std') in list(data_xy[d].columns)):
+                    data_xy[d].drop(labels=('Avg. ' + root_name[d]), inplace=True)
+                end = data_xy[d].shape[1]
+                data_xy[d]['Avg. ' + root_name[d]] = data_xy[d].iloc[:, 1:end].mean(axis=1)
+                data_xy[d]['Avg. ' + root_name[d] + ' Std'] = data_xy[d].iloc[:, 1:end].std(axis=1)
+                xy_data = data_xy[d].copy(deep=True)
+                xy_data['Avg. ' + root_name[d] + r' + $\sigma$'] = xy_data['Avg. ' + root_name[d]] + xy_data['Avg. ' + root_name[d] + ' Std']
+                xy_data['Avg. ' + root_name[d] + r' - $\sigma$'] = xy_data['Avg. ' + root_name[d]] - xy_data['Avg. ' + root_name[d] + ' Std']
+                columns = list(xy_data.columns.values)
+                plt.plot(columns[0], columns[-4], data=xy_data, marker=marker_type, linestyle=line_type,
+                         markersize=mark_size, color=colors[d], linewidth=line_size)
 
-        if (plot_std_dev):
-            plt.fill_between(columns[0], columns[-2], columns[-1], data=xy_data, label=(r'Avg. ' + root_name + r' $\pm$ $\sigma$'),
-                             linestyle=line_type, color=colors, linewidth=float(line_size / (1 * line_size)), alpha=alpha)
+                if (plot_std_dev):
+                    plt.fill_between(columns[0], columns[-2], columns[-1], data=xy_data, label=(r'Avg. ' + root_name[d] + r' $\pm$ $\sigma$'),
+                                     linestyle=line_type, color=colors[d], linewidth=float(line_size / (1 * line_size)), alpha=alpha)
+        else:
+            if (('Avg. ' + root_name) in list(data_xy.columns)):
+                data_xy.drop(labels=('Avg. ' + root_name), inplace=True)
+            if (('Avg. ' + root_name + ' Std') in list(data_xy.columns)):
+                data_xy.drop(labels=('Avg. ' + root_name), inplace=True)
+            end = data_xy.shape[1]
+            data_xy['Avg. ' + root_name] = data_xy.iloc[:, 1:end].mean(axis=1)
+            data_xy['Avg. ' + root_name + ' Std'] = data_xy.iloc[:, 1:end].std(axis=1)
+            xy_data = data_xy.copy(deep=True)
+            xy_data['Avg. ' + root_name + r' + $\sigma$'] = xy_data['Avg. ' + root_name] + xy_data['Avg. ' + root_name + ' Std']
+            xy_data['Avg. ' + root_name + r' - $\sigma$'] = xy_data['Avg. ' + root_name] - xy_data['Avg. ' + root_name + ' Std']
+            columns = list(xy_data.columns.values)
+            plt.plot(columns[0], columns[-4], data=xy_data, marker=marker_type, linestyle=line_type,
+                     markersize=mark_size, color=colors, linewidth=line_size)
+
+            if (plot_std_dev):
+                plt.fill_between(columns[0], columns[-2], columns[-1], data=xy_data, label=(r'Avg. ' + root_name + r' $\pm$ $\sigma$'),
+                                 linestyle=line_type, color=colors, linewidth=float(line_size / (1 * line_size)), alpha=alpha)
 
         if (graph_title != ""):
             plt.suptitle(graph_title, fontsize=title_font_size)
