@@ -351,6 +351,63 @@ def plotter_mean(data_xy, num_datasets=1, x_label="X Axis", y_label="Y Axis", gr
             print("ERROR MESSAGE: %s" % (e))
 
 
+def plotter_grid(vals, fig_size=(8, 8), color='binary', color_lines='black', color_text='black', font_size=16, save_plot=False, fig_name="MyGrid"):
+    """
+    Function takes as input a grid and plot its values as a matrix.
+
+    Parameters
+    ----------
+    vals : numpy.ndarray
+        Array with values.
+    fig_size : tuple, optional
+        Size for plot. The default is (8, 8).
+    color : str, optional
+        Color description. The color is used as color map and MUST be one of the acceptable colors
+        from <https://matplotlib.org/stable/tutorials/colors/colormaps.html >. The default is "binary".
+    color_lines : str, optional
+        Color description from <https://matplotlib.org/stable/tutorials/colors/colormaps.html > for grid lines. The default is "grey".
+    color_text : str, optional
+        Color description from <https://matplotlib.org/stable/tutorials/colors/colormaps.html > for texts. The default is "black".
+    font_size : int, optional
+        Size of font. The default is 16.
+    save_plot : bool, optional
+        Flag to whether or not save the plot. The default is False.
+    fig_name : str, optional
+        Name for saving figure. The default is "MyGrid".
+
+    Returns
+    -------
+    None.
+    """
+    try:
+        grid = vals.T
+        state = np.arange(0, vals.size).reshape(vals.shape).T  # State indices
+        matrix = np.ones((grid.shape[0], grid.shape[1]), dtype=float)
+        if (color != 'binary'):
+            matrix += grid
+        fig, ax = plt.subplots(figsize=fig_size)
+        ax.matshow(matrix, cmap=color)
+        for i in range(grid.shape[0]):
+            for j in range(grid.shape[1]):
+                text = r'$V(' + str(state[i][j]) + r')=' + str(grid[i][j]) + r'$'
+                ax.text(i, j, text, color=color_text, va='center', ha='center', fontsize=font_size)
+        xs = (np.array(list(range(0, grid.shape[0] + 1)), dtype=float) - 0.5)
+        ys = (np.array(list(range(0, grid.shape[1] + 1)), dtype=float) - 0.5)
+        for y in ys:
+            ax.plot(xs, (np.ones(xs.size) * y), marker=None, color=color_lines, linewidth=(font_size / 10))
+        for x in xs:
+            ax.plot((np.ones(ys.size) * x), ys, marker=None, color=color_lines, linewidth=(font_size / 10))
+        ax.set_axis_off()
+        fig.tight_layout(pad=0.0)
+        plt.show()
+        if (save_plot):
+            timestr = time.strftime("%y-%m-%d_%Hh%Mm%Ss_")
+            fig = ax.get_figure()
+            fig.savefig(timestr + fig_name + ".png")
+    except Exception as e:
+        print(e)
+
+
 def argmax_rand(arr, use_random_argmax=False, rng=np.random.default_rng(59)):
     """
     Method to overcome numpy.argmax() limitation of deterministically return index of first occurrence of maximum value,
