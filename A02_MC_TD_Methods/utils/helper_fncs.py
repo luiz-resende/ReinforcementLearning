@@ -707,3 +707,34 @@ def generate_q_table_episode(q_s_a_table, env, epsilon=0.01, alpha=0.1, gamma=0.
             return q_s_a_vals, states, action, reward
     except Exception as e:
         print(e)
+
+
+def check_optimality(env, policies_dict):
+    """
+    Helper method to check which policies yield optimal results given an environemnt setup.
+
+    Parameters
+    ----------
+    env : frozen_lake.FrozenLake
+        Environment.
+    policies_dict : dict
+        Dictionary containing the different policies to be tested.
+
+    Returns
+    -------
+    count_opt : int
+        Number of optimal policies.
+    opts_indx : TYPE
+        Indicies/keys for the optimal policies.
+    """
+    try:
+        count_opt = 0
+        opts_indx = []
+        for pol in list(policies_dict):
+            ep = generate_episode(greedify_policy(policies_dict[pol]), env, render=False)
+            if ((len(ep[0]) <= 7) and (ep[0][-1] == 15)):
+                count_opt += 1
+                opts_indx.append(pol)
+        return (count_opt, opts_indx)
+    except Exception as e:
+        print(e)
