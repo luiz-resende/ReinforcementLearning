@@ -1,11 +1,3 @@
-###############################################################################
-#  Copyright (c) 2021 by Luiz Resende Silva
-#  Released under the GNU General Public License; see LICENSE.md for details.
-################################################################################
-#  The functions below are constructed based on the environment Modified Frozen
-#  Lake by Michel Ma
-#  [source code](https://github.com/micklethepickle/modified-frozen-lake)
-################################################################################
 import os
 import numpy as np
 import pandas as pd
@@ -276,13 +268,11 @@ def plotter_mean(data_xy, num_datasets=1, x_label="X Axis", y_label="Y Axis", gr
             ax.set_xscale('log')
         if (num_datasets > 1):
             for d in range(num_datasets):
-                if (('Avg. ' + root_name[d]) in list(data_xy[d].columns)):
-                    data_xy[d].drop(labels=('Avg. ' + root_name[d]), inplace=True)
-                if (('Avg. ' + root_name[d] + ' Std') in list(data_xy[d].columns)):
-                    data_xy[d].drop(labels=('Avg. ' + root_name[d]), inplace=True)
-                end = data_xy[d].shape[1]
-                data_xy[d]['Avg. ' + root_name[d]] = data_xy[d].iloc[:, 1:end].mean(axis=1)
-                data_xy[d]['Avg. ' + root_name[d] + ' Std'] = data_xy[d].iloc[:, 1:end].std(axis=1)
+                if (('Avg. ' + root_name[d]) not in list(data_xy[d].columns)):
+                    end = data_xy[d].shape[1]
+                    data_xy[d]['Avg. ' + root_name[d]] = data_xy[d].iloc[:, 1:end].mean(axis=1)
+                if (('Avg. ' + root_name[d] + ' Std') not in list(data_xy[d].columns)):
+                    data_xy[d]['Avg. ' + root_name[d] + ' Std'] = data_xy[d].iloc[:, 1:end].std(axis=1)
                 xy_data = data_xy[d].copy(deep=True)
                 xy_data['Avg. ' + root_name[d] + r' + $\sigma$'] = xy_data['Avg. ' + root_name[d]] + xy_data['Avg. ' + root_name[d] + ' Std']
                 xy_data['Avg. ' + root_name[d] + r' - $\sigma$'] = xy_data['Avg. ' + root_name[d]] - xy_data['Avg. ' + root_name[d] + ' Std']
@@ -294,11 +284,11 @@ def plotter_mean(data_xy, num_datasets=1, x_label="X Axis", y_label="Y Axis", gr
                     plt.fill_between(columns[0], columns[-2], columns[-1], data=xy_data, label=(r'Avg. ' + root_name[d] + r' $\pm$ $\sigma$'),
                                      linestyle=line_type, color=colors[d], linewidth=float(line_size / (1 * line_size)), alpha=alpha)
         else:
-            if (('Avg. ' + root_name) in list(data_xy.columns)):
-                data_xy.drop(labels=('Avg. ' + root_name), inplace=True)
-            if (('Avg. ' + root_name + ' Std') in list(data_xy.columns)):
-                data_xy.drop(labels=('Avg. ' + root_name), inplace=True)
-            end = data_xy.shape[1]
+            if (('Avg. ' + root_name) not in list(data_xy.columns)):
+                end = data_xy.shape[1]
+                data_xy['Avg. ' + root_name] = data_xy.iloc[:, 1:end].mean(axis=1)
+            if (('Avg. ' + root_name + ' Std') not in list(data_xy.columns)):
+                data_xy['Avg. ' + root_name + ' Std'] = data_xy.iloc[:, 1:end].std(axis=1)
             data_xy['Avg. ' + root_name] = data_xy.iloc[:, 1:end].mean(axis=1)
             data_xy['Avg. ' + root_name + ' Std'] = data_xy.iloc[:, 1:end].std(axis=1)
             xy_data = data_xy.copy(deep=True)
@@ -408,7 +398,7 @@ def plotter_grid(vals, fig_size=(8, 8), color='binary', color_lines='black', col
         print(e)
 
 
-def argmax_rand(arr, use_random_argmax=False, rng=np.random.default_rng(59)):
+def argmax_rand(arr, use_random_argmax=False, rng=None):
     """
     Method to overcome numpy.argmax() limitation of deterministically return index of first occurrence of maximum value,
     i.e. the method ```argmax_rand()``` identifies the maximum value in an array and all its occurrences and randomly
@@ -601,5 +591,119 @@ def generate_episode(policy, env, render=True, rng=np.random.default_rng(59), ge
             return (states, action, reward, isdone)
         else:
             return (states, action, reward)
+    except Exception as e:
+        print(e)
+
+
+def generate_q_table_episode(q_s_a_table, env, epsilon=0.01, alpha=0.1, gamma=0.99, render=True, use_random_argmax=False,
+                             rng=np.random.default_rng(59), get_isdone=False, algorithm='q-learning'):
+    """
+    Function generates an epsisode given the current action value estimates $Q(s,a)$ and an environment. The actions values
+    are updated at each learning time step within the episode.
+
+    Parameters
+    ----------
+    q_s_a_table : numpy.ndarray
+        Array of shape (number_states, number_actions) with the estimated action values.
+    env : frozen_lake.FrozenLakeEnv
+        Object of type FrozenLakeEnv for the environment.
+    epsilon : float, optional
+        Factor for determining the probability of taking non-greedy actions. The default is 0.01.
+    alpha : float, optional
+        Step-size parameter. The default is 0.1.
+    gamma : float, optional
+        Discounting factor. The default is 0.99.
+    render : bool, optional
+        Flag to whether or not to render the actions $a$ taken in the environment under policy $\\pi$. The default is True.
+    use_random_argmax : bool, optional
+        Flag to whether or not choose argmax action randomly if more than one maximum value action. The default is False.
+    rng : numpy.random._generator.Generator, optional
+        Random number generator for action selection. The default is np.random.default_rng(59).
+    get_isdone : bool, optional
+        Flag to whether or not return array with boolean values for state is terminal or not. The default is False.
+    algorithm : str, optional
+        Keyword to choose between SARSA ('sarsa'), Expected SARSA ('expected-sarsa') or Q-Learning ('q-learning') algorithms
+        to update actions values $Q(s,a)$. The default is 'q-learning'.
+
+    Returns
+    -------
+    q_s_a_vals : numpy.ndarray
+        Array of shape (number_states, number_actions) with the updated action values at each time step.
+    states : numpy.ndarray
+        Array with the indecies of states visited.
+    actions : numpy.ndarray
+        Array with the actions $a$ taken under policy $\\pi$ for states $s$ visited.
+    rewards : numpy.ndarray
+        Array with the rewards $r(s,a,s')$.
+    """
+    try:
+        state = env.reset()  # Returns the initial state s=0
+        states, action, reward, isdone = ([], [], [], [])  # Creating empty lists
+        q_s_a_vals = q_s_a_table.copy()
+
+        if (algorithm == 'sarsa'):  # If SARSA algorithm, it starts by selecting action $s$ for $s_{0}$ from e-greedy
+            # state_policy_q = e_soft_policy_state(q_s_a_vals[state], epsilon=epsilon)
+            action_s = action_choice(policy_state=q_s_a_vals[state], rng=rng, use_random_argmax=use_random_argmax,
+                                     epsilon=epsilon, env=env)
+
+        while True:
+            if (render):
+                env.render()
+            states.append(state)
+
+            if ((algorithm == 'q-learning') or (algorithm == 'expected-sarsa')):
+                # state_policy_q = e_soft_policy_state(q_s_a_vals[state], epsilon=epsilon)
+                action_s = action_choice(policy_state=q_s_a_vals[state], rng=rng, use_random_argmax=use_random_argmax,
+                                         epsilon=epsilon, env=env)
+
+            action.append(action_s)  # In either algorithm the actions has been selected
+
+            next_s, r, done, extra = env.step(action_s)
+            reward.append(float(r))
+            isdone.append(bool(done))
+
+            if (algorithm == 'sarsa'):  # If SARSA, chooses an action $a'$ for the next state $s'$ and updates $Q(s,a)$ using $Q(s',a')$
+                # state_policy_q = e_soft_policy_state(q_s_a_vals[next_s], epsilon=epsilon)
+                a_next_s = action_choice(policy_state=q_s_a_vals[next_s], rng=rng, use_random_argmax=use_random_argmax,
+                                         epsilon=epsilon, env=env)
+                next_Q_val = 0.0
+                if (not done):
+                    next_Q_val = q_s_a_vals[next_s][a_next_s]
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * next_Q_val))))
+
+                action_s = a_next_s  # Assigning current action as action $a'$ for state $s'$
+
+            if (algorithm == 'expected-sarsa'):
+                prob_a_next_s = e_soft_policy_state(q_s_a_vals[next_s], epsilon=epsilon, distributed=True,
+                                                    use_random_argmax=use_random_argmax, rng=rng)  # Probabilities $\\pi(a|s')$
+                expect_next_s = 0.0
+                if (not done):
+                    expect_next_s = np.sum((prob_a_next_s * q_s_a_vals[next_s]))  # Expectation $sum{\\pi(a|s') * Q(s',a)}$
+
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * expect_next_s))))
+
+            if (algorithm == 'q-learning'):
+                next_Q_val = 0.0
+                if (not done):
+                    next_Q_val = np.max(q_s_a_vals[next_s])
+
+                q_s_a_vals[state][action_s] = (((1.0 - alpha) * q_s_a_vals[state][action_s])
+                                               + (alpha * (r + (gamma * next_Q_val))))
+
+            state = next_s
+
+            if(done):
+                break
+
+        states = np.array(states, dtype=int)
+        action = np.array(action, dtype=int)
+        reward = np.array(reward, dtype=float)
+        isdone = np.array(isdone, dtype=bool)
+        if (get_isdone):
+            return q_s_a_vals, states, action, reward, isdone
+        else:
+            return q_s_a_vals, states, action, reward
     except Exception as e:
         print(e)
