@@ -58,8 +58,10 @@ class AgentDQN():
         self.__seed = seed
         self.__rng = np.random.default_rng(self.__seed)
         # CREATING THE ATARI ENVIRONMENT
-        self.game_id = game_id[:-3] + 'NoFrameskip' + game_id[-3:]  # Ensuring the environment is not skiping frames already
-        # self.game_id = game_id[:-3] + game_id[-3:]
+        if ('NoFrameskip' in game_id):
+            self.game_id = game_id
+        else:  # Ensuring the environment is not skiping frames already
+            self.game_id = game_id[:-3] + 'NoFrameskip' + game_id[-3:]
         self.render_mode = render_mode
         self.env = make_atari_env(self.game_id, render_mode=self.render_mode, max_episode_steps=max_episode_steps_env,
                                   no_op_reset=no_op_reset_env, no_op_max=no_op_max_env, skip_frames=skip_frames_env,
