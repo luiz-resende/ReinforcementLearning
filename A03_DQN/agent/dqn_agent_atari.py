@@ -79,7 +79,8 @@ class AgentDQN():
         if (((device_agent.lower() == 'gpu') or (device_agent.lower() == 'cuda')) and torch.cuda.is_available()):
             self.device = torch.device('cuda')
         # SETTING REPLAY MEMORY PARAMETERS
-        self.replay_memory = MemoryBuffer(data=None, max_size=memory_size, seed=self.__seed)
+        self.memory_size = memory_size
+        self.replay_memory = MemoryBuffer(max_size=memory_size, seed=self.__seed)
         self.batch_size = batch_size
         self.replay_start_size = replay_start_size
         # SETTING OPTIMIZER PARAMETERS
