@@ -289,7 +289,7 @@ class WarpFrame(gym.ObservationWrapper):
         self._width = width
         self._height = height
         self._grayscale = grayscale
-        # self._key = dict_space_key
+        self._key = dict_space_key
         if (self._grayscale):
             num_colors = 1  # Black
         else:
@@ -301,12 +301,12 @@ class WarpFrame(gym.ObservationWrapper):
             shape=(self._height, self._width, num_colors),
             dtype=np.uint8,
             )
-        # if (self._key is None):
-        original_space = self.observation_space
-        self.observation_space = new_space
-        # else:
-        #     original_space = self.observation_space.spaces[self._key]
-        #     self.observation_space.spaces[self._key] = new_space
+        if (self._key is None):
+            original_space = self.observation_space
+            self.observation_space = new_space
+        else:
+            original_space = self.observation_space.spaces[self._key]
+            self.observation_space.spaces[self._key] = new_space
         assert ((original_space.dtype == np.uint8) and (len(original_space.shape) == 3))
 
     def observation(self, obs):
@@ -323,22 +323,22 @@ class WarpFrame(gym.ObservationWrapper):
         obs : numpy.ndarray
             Processed environment state observation.
         """
-        # if (self._key is None):
-        frame = obs
-        # else:
-        #     frame = obs[self._key]
+        if (self._key is None):
+            frame = obs
+        else:
+            frame = obs[self._key]
 
         if (self._grayscale):
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-        frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_AREA)  # Resize frame
+        frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_AREA)
         if (self._grayscale):
             frame = np.expand_dims(frame, -1)
 
-        # if (self._key is None):
-        obs = frame
-        # else:
-        #     obs = obs.copy()
-        #     obs[self._key] = frame
+        if (self._key is None):
+            obs = frame
+        else:
+            obs = obs.copy()
+            obs[self._key] = frame
 
         return obs
 
@@ -645,7 +645,3 @@ def wrap_atari_env(env, clip_rewards=True, episodic_life=True, scale_frame=False
         env = FrameStack(env, n=stack_frames_n)
 
     return env
-
-
-# env = gym.make('Breakout-v0').env
-# env = wrap_atari_environment(env)
