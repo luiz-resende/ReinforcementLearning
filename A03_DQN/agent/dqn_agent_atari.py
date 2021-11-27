@@ -135,10 +135,10 @@ class AgentDQN():
             else:
                 raise TypeError("TypeError! seed should be integer, instead got %s..." % str(type(seed)))
 
-    def build_q_networks(self, wrap_env=True, clip_rewards=True, episodic_life=True, scale_frame=False,
-                         stack_frames=True, warp_frames=True, warp_frames_greyscale=True, **model_kwargs) -> None:
+    def build(self, wrap_env=True, clip_rewards=True, episodic_life=True, scale_frame=False,
+              stack_frames=True, warp_frames=True, warp_frames_greyscale=True, **model_kwargs) -> None:
         """
-        Method sets both the policy and the target q-networks.
+        Method wraps the environment and creates both the policy and the target q-networks.
 
         Creates agents using the default arguments {'in_channels': 4, 'out_channel': 16, 'shape_input': (84, 84),
                                                     'kernel': (8, 8), 'stride': (4, 4), 'padding': (0, 0),
