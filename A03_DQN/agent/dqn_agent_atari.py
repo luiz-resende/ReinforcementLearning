@@ -181,6 +181,16 @@ class AgentDQN():
         if (show_args):
             print("Available parameters to change: ", list(build_args.keys()))
 
+        if (wrap_env):
+            self.env = wrap_atari_env(self.env, clip_rewards=clip_rewards, episodic_life=episodic_life,
+                                      scale_frame=scale_frame, stack_frames=stack_frames,
+                                      stack_frames_n=build_args['in_channels'], warp_frames=warp_frames,
+                                      warp_frames_greyscale=warp_frames_greyscale,
+                                      warp_frames_size=build_args['shape_input'])
+
+        self.env_monitor = gym.wrappers.Monitor(self.env, directory=self.video_direc, force=True,
+                                                video_callable=lambda episode: True)
+
         self.dqn_policy = DQNModel(in_channels=build_args['in_channels'],
                                    out_channel=build_args['out_channel'],
                                    shape_input=build_args['shape_input'],
@@ -202,16 +212,6 @@ class AgentDQN():
                                    number_actions=build_args['number_actions'],
                                    agent_architecture=build_args['agent_architecture'])
         self.dqn_target.to(self.device)
-
-        if (wrap_env):
-            self.env = wrap_atari_env(self.env, clip_rewards=clip_rewards, episodic_life=episodic_life,
-                                      scale_frame=scale_frame, stack_frames=stack_frames,
-                                      stack_frames_n=build_args['in_channels'], warp_frames=warp_frames,
-                                      warp_frames_greyscale=warp_frames_greyscale,
-                                      warp_frames_size=build_args['shape_input'])
-
-        self.env_monitor = gym.wrappers.Monitor(self.env, directory=self.video_direc, force=True,
-                                                video_callable=lambda episode: True)
 
     def frame_tensor(self, obs) -> torch.Tensor:
         """
