@@ -1,16 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 19 16:47:57 2021
+DQN-Wrappers-Env
 
-@author: Luiz Resende Silva
+@author: [Luiz Resende Silva](https://github.com/luiz-resende)
+@date: Created on Tue Oct 19, 2021
+@version: Revised on Wed Dec 01, 2021
 
-Extracted ```baselines.common.atari_wrappers``` and modified.
+This script contains the necessary environment class wrappers to preprocess the
+OpenAI-Gym and ALE Atari environments, as well as the MinAtar environment. The base
+code was extracted from ``baselines.common.atari_wrappers`` and modified to
+clean-up the code and include new methods and classes.
+
+Revision Notes
+--------------
+Added functionalities to some classes, such as ``LazyFrames``, and designed a
+class wrapper for the MinAtar environment.
+
 """
-import numpy as np
+from typing import Any, Dict, List, Optional, Tuple, Union
 from collections import deque
 import gym
 from gym import spaces
 from gym.wrappers import TimeLimit
+import numpy as np
 import cv2
 cv2.ocl.setUseOpenCL(False)
 
@@ -469,9 +481,9 @@ class LazyFrames(object):
         Array with frames, i.e., state observation.
     """
 
-    def __init__(self, frames):
+    def __init__(self, frames, out=None):
         self._frames = frames
-        self._out = None
+        self._out = out
 
     def _force(self):
         """
@@ -506,7 +518,8 @@ class LazyFrames(object):
             out = out.astype(dtype)
         return out
 
-    def __len__(self):
+    def __len__(self
+                ) -> int:
         """
         Method to get object's length
 
@@ -517,7 +530,9 @@ class LazyFrames(object):
         """
         return len(self._force())
 
-    def __getitem__(self, i: int):
+    def __getitem__(self,
+                    i: int
+                    ) -> Any:
         """
         Method get object item.
 
@@ -533,7 +548,8 @@ class LazyFrames(object):
         """
         return self._force()[i]
 
-    def count(self):
+    def count(self
+              ) -> int:
         """
         Gets the number of frames stacked.
 
@@ -545,7 +561,9 @@ class LazyFrames(object):
         frames = self._force()
         return frames.shape[frames.ndim - 1]
 
-    def frame(self, i: int) -> np.ndarray:
+    def frame(self,
+              i: int
+              ) -> np.ndarray:
         """
         Method gets the ith stack frame.
 
@@ -560,6 +578,233 @@ class LazyFrames(object):
             Array of shape (width, heigh) and data type np.uint8.
         """
         return self._force()[..., i]  # The three dots are used to skip to the last dimension.
+
+    def tolist(self,
+               dtype: Optional[Union[type, str, None]] = None
+               ) -> List[Any]:
+        """
+        Allow creating and converting custom array container.
+
+        Parameters
+        ----------
+        dtype : Union[type, str, None], optional
+            Type of values in the final list object. It will eventually follow the
+            data types accepted by python lists. If ``dtype=None``, it will maintain
+            the current data type the LazyFrames object has. The default is None.
+
+        Returns
+        -------
+        out : numpy.ndarray
+            Array of chosen data type.
+        """
+        out = self._force()
+        if (dtype is not None):
+            out = out.astype(dtype)
+        return out.tolist()
+
+
+class MinAtarEnvRGB(gym.ObservationWrapper, gym.Wrapper, gym.Env):
+    """
+    A Gym wrapper around the BaseEnv for MinAtar environment.
+
+    This wrapper converts the n-channel states to RGB.
+    """
+
+    metadata = {'render.modes': ['human', 'rgb_array', 'array']}
+
+    def __init__(self,
+                 env: gym.envs,
+                 frame_width: Optional[int] = 10,
+                 frame_height: Optional[int] = 10,
+                 grayscale: Optional[bool] = False) -> None:
+        super(MinAtarEnvRGB, self).__init__(env)
+        self._action_set = self.action_set
+        self._action_space = spaces.Discrete(len(self._action_set))
+        self._frame_width = frame_width
+        self._frame_height = frame_height
+        self._grayscale = grayscale
+        if (self._grayscale):
+            num_colors = 1  # Black
+        else:
+            num_colors = 3  # RGB
+        new_space = gym.spaces.Box(
+            high=255,
+            low=0,
+            shape=(self._frame_width, self._frame_height, num_colors),
+            dtype=np.uint8,
+            )
+        original_space = self.observation_space
+        self._obs_space = new_space
+        assert ((original_space.dtype == bool) and (len(original_space.shape) == 3))
+        self.viewer = None
+
+    def __getScreenRGB(self,
+                       original_state: np.ndarray
+                       ) -> np.ndarray:
+        """
+        Method converts the original' environment observation from a 4 channels array to a RGB image.
+
+        Parameters
+        ----------
+        original_state : np.ndarray
+            Original observation in the ```observation_space.shape=(10, 10, 4)```.
+
+        Returns
+        -------
+        new_atate_rgb : np.ndarray
+            Converted observation in the ```observation_space.shape=(10, 10, 3)```, i.e., RGB image.
+
+        Notes
+        -----
+        The original observation is composed of an array of shape (10, 10, n), where each of the n
+        channels corresponds to a game-specific object, e.g., ball, paddle and brick in the
+        game ```Breakout-v1```.
+        """
+        channel_to_rgb = {0: [255, 0, 0],
+                          1: [0, 255, 0],
+                          2: [0, 0, 255],
+                          3: [128, 128, 0],
+                          4: [128, 0, 128],
+                          5: [0, 128, 128],
+                          6: [170, 170, 85],
+                          7: [170, 85, 170],
+                          8: [85, 170, 170],
+                          9: [85, 85, 170]
+                          }
+        original_shape = original_state.shape
+        new_shape_rgb = (original_shape[0], original_shape[1], 3)
+        new_state_rgb = np.zeros(new_shape_rgb, dtype=np.uint8)
+        for x in range(original_shape[0]):
+            for y in range(original_shape[1]):
+                for z in range(original_shape[2]):
+                    if (original_state[x, y, z]):
+                        new_state_rgb[x, y] = np.array(channel_to_rgb[z], dtype=np.uint8)
+        return new_state_rgb
+
+    def __observation(self,
+                      obs: np.ndarray
+                      ) -> np.ndarray:
+        """
+        Processing observation.
+
+        Parameters
+        ----------
+        obs : numpy.ndarray
+            Environment state observation.
+
+        Returns
+        -------
+        obs : numpy.ndarray
+            Processed environment state observation.
+        """
+        obs = self.__getScreenRGB(obs)
+        if (self._grayscale):
+            obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        obs = cv2.resize(obs, (self._frame_width, self._frame_height), interpolation=cv2.INTER_AREA)
+        if (self._grayscale):
+            obs = np.expand_dims(obs, -1)
+
+        return obs
+
+    def get_action_meanings(self
+                            ) -> List[str]:
+        """Return the meaning of each integer action from the set of available actions."""
+        meanings = {'n': 'NOOP',
+                    'l': 'LEFT',
+                    'u': 'UP',
+                    'r': 'RIGHT',
+                    'd': 'DOWN',
+                    'f': 'FIRE'}
+        env_action_map = self.unwrapped.game.env.action_map
+        actions = [meanings[env_action_map[a]] for a in self.unwrapped.action_set]
+        return actions
+
+    def step(self,
+             action: int
+             ) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+        """
+        Perform one agent step.
+
+        Parameters
+        ----------
+        action: int
+            Action index to selected to be executed.
+
+        Returns
+        -------
+        Tuple[np.ndarray, float, bool, Dict[str, Any]]
+            State transitino tuple with the (observation, reward, terminal, metadata).
+
+        Notes
+        -----
+        ```metadata``` is empty since the environment does not keep track of lives.
+        """
+        action = self.action_set[action]
+        reward, done = self.game.act(action)
+        metadata = {}
+        obs = self.unwrapped.game.state()
+
+        return (self.__observation(obs), reward, done, metadata)
+
+    def reset(self
+              ) -> np.ndarray:
+        """Resets environment and returns initial observation."""
+        self.unwrapped.game.reset()
+        obs = self.unwrapped.game.state()
+        obs = self.__observation(obs)
+
+        return obs
+
+    def render(self,
+               mode: str
+               ) -> Union[np.ndarray, Any]:
+        """
+        Method to render the environment.
+
+        Parameters
+        ----------
+        mode : str
+            The rendering mode.
+
+        Returns
+        -------
+        Union[np.ndarray, Any]
+            Either the array with the state observation or a gym-based image viewer.
+        """
+        if mode == "array":
+
+            return self.unwrapped.game.state()
+        elif mode == 'rgb_array':
+            img = self.__observation(self.unwrapped.game.state())
+
+            return img
+        elif mode == "human":
+            from gym.envs.classic_control import rendering
+            img = self.__observation(self.unwrapped.game.state())
+            if (self.viewer is None):
+                self.viewer = rendering.SimpleImageViewer()
+            self.viewer.imshow(img)
+
+            return self.viewer.isopen
+
+    def close(self
+              ) -> None:
+        """Cleanup any leftovers by the environment"""
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None
+
+    @property
+    def action_space(self
+                     ) -> spaces.Discrete:
+        """Return Gym's action space."""
+        return self._action_space
+
+    @property
+    def observation_space(self
+                          ) -> spaces.Box:
+        """Return Gym's action space."""
+        return self._obs_space
 
 
 def make_atari_env(game_id, render_mode='rgb_array', max_episode_steps=None, no_op_reset=True, no_op_max=30,
@@ -589,7 +834,7 @@ def make_atari_env(game_id, render_mode='rgb_array', max_episode_steps=None, no_
     env : Any
         A wrappend gym.envs.atari.environment.AtariEnv.
     """
-    env = gym.make(game_id, render_mode=render_mode)
+    env = gym.make(game_id, render_mode=render_mode).env
     if (no_op_reset):
         env = NoopResetEnv(env, noop_max=no_op_max)
     if (('NoFrameskip' in env.spec.id) and skip_frames):
@@ -643,5 +888,26 @@ def wrap_atari_env(env, clip_rewards=True, episodic_life=True, scale_frame=False
         env = ClipRewardEnv(env)
     if (stack_frames):
         env = FrameStack(env, n=stack_frames_n)
+
+    return env
+
+
+def make_minAtar_env(game_id, render_mode='rgb_array'):
+    """
+    Method makes an OpenAI Gym MinAtar environment.
+
+    Parameters
+    ----------
+    game_id : str
+        The MinAtar game environment name.
+    render_mode : str, optional
+        The render mode for the environment. The default is 'rgb_array'.
+
+    Returns
+    -------
+    env : gym.BaseEnv
+        The MinAtar game wrapped as an OpenAI Gym environment.
+    """
+    env = gym.make(game_id, render_mode=render_mode).env
 
     return env
