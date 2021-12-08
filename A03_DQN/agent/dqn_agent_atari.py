@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 DQN-Atari-Agent
 
@@ -18,6 +17,13 @@ v.4 - Redesigned batch sampling and moved it into the ``self.optimize_model()`` 
 v.5 - Completely re-structured the code, including dictionaries with the necessary information
       for the class contruction, added methods to save and load entire agent information.
 
+Resources
+---------
+Bellemare et. al. (2013) -> https://jair.org/index.php/jair/article/view/10819/25823
+Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
+Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
+Young and Tian (2019) -> https://arxiv.org/pdf/1903.03176.pdf
+
 """
 import collections
 import numpy as np
@@ -32,8 +38,26 @@ import wandb
 
 import torch
 from dqn_memory_buffer import MemoryBuffer
-from dqn_models_torch import DQNModel  # ModelDQN
+from dqn_models_torch import DQNModel
 from dqn_wrappers_env import make_atari_env, make_minAtar_env, wrap_atari_env, LazyFrames, MinAtarEnvRGB
+
+from pyvirtualdisplay import Display
+from IPython import display as ipythondisplay
+from IPython.display import clear_output
+
+
+def show_video(directory):
+    html = []
+    for mp4 in Path(directory).glob("*.mp4"):
+        video_b64 = base64.b64encode(mp4.read_bytes())
+        html.append('''<video alt="{}" autoplay
+                      loop controls style="height: 400px;">
+                      <source src="data:video/mp4;base64,{}" type="video/mp4" />
+                 </video>'''.format(mp4, video_b64.decode('ascii')))
+    ipythondisplay.display(ipythondisplay.HTML(data="<br>".join(html)))
+    
+display = Display(visible=0, size=(1400, 900))
+display.start(); 
 
 
 class AgentDQN():
@@ -48,8 +72,8 @@ class AgentDQN():
             game_id : ``str``
                 Name of the game environment to be built. The default can be ``'Pong-v4'``.
             is_minatar : ``bool``
-                Whether it is an Atari environment from ALE (Bellemare et. al. 2013) or the miniaturized
-                version (Young, K., Tian, T. 2019) with frames of shape (10, 10, n_channels).Please, note
+                Whether it is an Atari environment from ALE (Bellemare et. al., 2013) or the miniaturized
+                version (Young and Tian, 2019) with frames of shape (10, 10, n_channels).Please, note
                 that if ```is_minatar=True```, only five game environments are available,
                 {Asterix, Breakout, Freeway, Seaquest, SpaceInvaders} (with '-v0' or 'v1'). The default can be ``False``.
             render_mode : ``str``
@@ -82,8 +106,8 @@ class AgentDQN():
                 Whether or not to make frames to greyscale. The default can be ``True``.
     configuration_dqn_models : ``dict``
         A mapping of the necessary information to build the Deep Q-Networks models. The models available
-        follow the ones proposed in Mnih et al. (2013) and Mnih et al. (2015). It should contain the
-        following keys and their values:
+        follow the ones proposed in Mnih et al. (2013), Mnih et al. (2015) and Young and Tian (2019).
+        It should contain the following keys and their values:
             in_channels : ``int``
                 Number of input channels (or number of 1-channel stacked frames). For example: 4
             out_channel : ``int``
@@ -204,6 +228,9 @@ class AgentDQN():
     self.episodes_scores : ``list``
     self.episodes_losses : ``list``
     self.frames_counter : ``int``
+    self.epochs_counter : ``int``
+    self.steps_optimize : ``int``
+    self.episode_number : ``int``
     self.wandb_logging_on : ``bool``
     self.logger : ``sdk.wandb_run.Run``
 
@@ -390,6 +417,12 @@ class AgentDQN():
         self.episodes_losses = []
         self.loss_ep = []
         self.frames_counter = 0
+        self.epochs_counter = 0
+        self.steps_optimize = 0
+        self.episode_number = 0
+        self.__logging_info = {'experiment_run_name': experiment_run_name,
+                               'experiment_project_name': experiment_project_name,
+                               'experiment_run_notes': (experiment_run_notes + r' | ' + self.game_id)}
         self.wandb_logging_on = use_wandb_logging
         if (self.wandb_logging_on):
             self.logger = wandb.init(name=experiment_run_name,
@@ -539,6 +572,66 @@ class AgentDQN():
 
                 return act
 
+    def get_batch_replay(self
+                         ) -> Tuple:
+        r"""
+        Method retrieves the list of samples from buffer memory and groups them in specific batches.
+
+        Parameters
+        ----------
+        ``None``
+
+        Returns
+        -------
+        batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx : ``Tuple``
+            batch_s_t0 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size, number_channels, frame_height, frame_width])``
+                for observed statesat time :math:`t`.
+            batch_a_t0 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size, 1])`` for observed action taken at time :math:`t`.
+            batch_r_t1 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size])`` for observed reward received at time :math:`t+1`.
+            batch_s_t1 : ``torch.Tensor``
+                Tensor of ``torch.Size([~batch_size, number_channels, frame_height, frame_width])``
+                for observed states at :math:`t+1`.
+            batch_indx : ``torch.Tensor``
+                Tensor of ``torch.Size([~batch_s_t1.size()])`` mapping which state frames at ```batch_s_t1```
+                are not terminal states.
+        """
+        batch_transitions = self.buffer_memory.random_samples(self.batch_size, look_start=False)
+        batch_samples = self.transition_experience(*zip(*batch_transitions))
+
+        # 1 - Grouping current states and converting to tensors - Data type needs to be either torch.float32 or torch.float
+        # 2 - Grouping actions - Data type needs to be either torch.long or torch.int64
+        # 3 - Grouping rewards - Data type needs to be either torch.float or torch.float32
+        # 4 - Grouping next states and converting to tensors - Data type needs to be either torch.float32 or torch.float
+        if (self.save_tensors_to_memory):
+            batch_s_t0 = torch.cat(batch_samples.s_t0).type(torch.float).to(self.device)
+            batch_a_t0 = torch.cat(batch_samples.a_t0).type(torch.long).to(self.device)
+            batch_r_t1 = torch.cat(batch_samples.r_t1).type(torch.float).to(self.device)
+            batch_s_t1 = torch.cat([s for s in batch_samples.s_t1 if s is not None]).type(torch.float).to(self.device)
+            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
+                                      dtype=torch.long,
+                                      device='cpu')
+        else:
+            batch_s_t0 = torch.cat([self.get_tensor(s,
+                                                    lazy_frames=False,
+                                                    dtype=torch.float) for s in batch_samples.s_t0])
+            batch_a_t0 = torch.cat([self.get_tensor([a],
+                                                    lazy_frames=False,
+                                                    dtype=torch.long) for a in batch_samples.a_t0])
+            batch_r_t1 = torch.cat([self.get_tensor(r,
+                                                    lazy_frames=False,
+                                                    dtype=torch.float) for r in batch_samples.r_t1])
+            batch_s_t1 = torch.cat([self.get_tensor(s,
+                                                    lazy_frames=True,
+                                                    dtype=torch.float) for s in batch_samples.s_t1 if s is not None])
+            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
+                                      dtype=torch.long,
+                                      device='cpu')
+
+        return batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx
+
     def optimize_model(self
                        ) -> None:
         r"""
@@ -660,12 +753,10 @@ class AgentDQN():
         -------
         ``None``
         """
-        ep_progress_bar = tqdm.tqdm(range(max_number_episodes),
+        ep_progress_bar = tqdm.tqdm(range(self.episode_number, max_number_episodes),
                                     desc=r'[Training AgentDQN] ',
                                     unit='ep'
                                     )
-        epoch_count = 0
-        update_steps = 0
 
         for ep in ep_progress_bar:
             time.sleep(0.0)
@@ -693,14 +784,13 @@ class AgentDQN():
                 if (render):
                     self.env.render(mode=render_mode)
 
+                s_t1 = None
                 if (self.save_tensors_to_memory):  # Storing tensors, more computationally-efficient
                     r_t1 = self.get_tensor(r_t1, lazy_frames=False, dtype=torch.float16)
-                    s_t1 = None
                     if (not done):  # Saving only if non-terminal state
                         s_t1 = self.get_tensor(next_state, lazy_frames=True, dtype=torch.uint8)
                 else:  # Storing LazyFrames, more memory-efficient
                     r_t1 = np.float16(r_t1)
-                    s_t1 = None
                     if (not done):  # Saving only if non-terminal state
                         s_t1 = next_state
 
@@ -710,36 +800,37 @@ class AgentDQN():
 
                 if (self.frames_counter > self.initial_memory):  # Optimizing after minimum memory achieved
 
-                    update_steps += 1  # Increasing update_step counter
+                    self.steps_optimize += 1  # Increasing update_step counter
 
-                    if ((update_steps % update_frequency_model) == 0):  # Optimizing model after a given number of actions
+                    if ((self.steps_optimize % update_frequency_model) == 0):  # Optim. model after a given number of actions
                         self.optimize_model()
 
                     if ((self.frames_counter % self.update_target_model) == 0):  # Updating target network
                         self.dqn_target.load_state_dict(self.dqn_policy.state_dict())
 
                 if (self.wandb_logging_on and ((self.frames_counter % self.epoch_ep_n) == 0)):
-                    epoch_count += 1
-                    self.logger.log({r'Avg. Score (per epoch)': np.mean(self.episodes_scores),
-                                     'Epoch': epoch_count}
+                    self.epochs_counter += 1
+                    self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores),
+                                     'Epoch': self.epochs_counter}
                                     )
                 if (done):
+                    self.episode_number += 1
                     break  # Ending current episode
 
             self.episodes_scores.append(ep_score)
             if (self.wandb_logging_on):
                 self.logger.log({'Total Score (per episode)': self.episodes_scores[-1],
                                  'Avg. Score Episodes': np.mean(self.episodes_scores),
-                                 'Episode': (ep + 1)}
+                                 'Episode': self.episode_number}
                                 )
             if (self.frames_counter > self.initial_memory):
                 self.episodes_losses.append(np.mean(self.loss_ep))
                 self.loss_ep = []
                 if (self.wandb_logging_on):
                     self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses),
-                                     'Episode': (ep + 1)}
+                                     'Episode': self.episode_number}
                                     )
-            ep_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / (ep + 1)), decimals=3),
+            ep_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
                                         AvgRewardEps=np.round(np.mean(self.episodes_scores), decimals=3),
                                         RewardMax=np.max(self.episodes_scores),
                                         TotalSteps=self.frames_counter,
@@ -774,9 +865,6 @@ class AgentDQN():
         ``None``
         """
         ep_score = 0.0
-        ep_numbr = 0
-        epoch_count = 0
-        update_steps = 0
 
         frames_progress_bar = tqdm.tqdm(range(max_number_training_frames),
                                         desc=r'[Training AgentDQN] ',
@@ -806,14 +894,13 @@ class AgentDQN():
             if (render):
                 self.env.render(mode=render_mode)
 
+            s_t1 = None
             if (self.save_tensors_to_memory):  # Storing tensors, more computationally-efficient
                 r_t1 = self.get_tensor(r_t1, lazy_frames=False, dtype=torch.float16)
-                s_t1 = None
                 if (not done):  # Saving only if non-terminal state
                     s_t1 = self.get_tensor(next_state, lazy_frames=True, dtype=torch.uint8)
             else:  # Storing LazyFrames, more memory-efficient
                 r_t1 = np.float16(r_t1)
-                s_t1 = None
                 if (not done):  # Saving only if non-terminal state
                     s_t1 = next_state
 
@@ -823,21 +910,21 @@ class AgentDQN():
 
             if (self.frames_counter > self.initial_memory):  # Optimizing after minimum memory achieved
 
-                update_steps += 1  # Increasing update_step counter
+                self.steps_optimize += 1  # Increasing update_step counter
 
-                if ((update_steps % update_frequency_model) == 0):  # Optimizing model after a given number of actions
+                if ((self.steps_optimize % update_frequency_model) == 0):  # Optim. model after a given number of actions
                     self.optimize_model()
 
                 if ((self.frames_counter % self.update_target_model) == 0):  # Updating target network
                     self.dqn_target.load_state_dict(self.dqn_policy.state_dict())
 
             if (self.wandb_logging_on and ((self.frames_counter % self.epoch_ep_n) == 0)):
-                epoch_count += 1
-                self.logger.log({r'Avg. Score (per epoch)': np.mean(self.episodes_scores),
-                                 'Epoch': epoch_count}
+                self.epochs_counter += 1
+                self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores),
+                                 'Epoch': self.epochs_counter}
                                 )
             if (done):
-                ep_numbr += 1
+                self.episode_number += 1
                 s_t0 = self.env.reset()
                 if (self.save_tensors_to_memory):
                     s_t0 = self.get_tensor(s_t0, lazy_frames=True, dtype=torch.uint8)
@@ -848,16 +935,16 @@ class AgentDQN():
                 if (self.wandb_logging_on):
                     self.logger.log({'Total Score (per episode)': self.episodes_scores[-1],
                                      'Avg. Score Episodes': np.mean(self.episodes_scores),
-                                     'Episode': ep_numbr}
+                                     'Episode': self.episode_number}
                                     )
                 if (self.frames_counter > self.initial_memory):
                     self.episodes_losses.append(np.mean(self.loss_ep))
                     self.loss_ep = []
                     if (self.wandb_logging_on):
                         self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses),
-                                         'Episode': ep_numbr}
+                                         'Episode': self.episode_number}
                                         )
-                frames_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / ep_numbr), decimals=3),
+                frames_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
                                                 AvgRewardEps=np.round(np.mean(self.episodes_scores), decimals=3),
                                                 RewardMax=np.max(self.episodes_scores)
                                                 )
@@ -1012,7 +1099,7 @@ class AgentDQN():
               + f'{np.round(np.std(episodes_scores_eval), decimals=3)}')
 
         self.env_monitor.close()
-        # show_video(self.video_direc)
+        show_video(self.video_direc)
 
     def save_dqn_models(self,
                         path: Optional[str] = r'./saved_models/',
@@ -1040,7 +1127,7 @@ class AgentDQN():
         torch.save(self.dqn_target, target_name)
 
     def save_agent_state(self,
-                         base_file_name: Optional[str] = 'saved_agent',
+                         base_file_name: Optional[str] = 'agent_saved',
                          postfix: Optional[str] = '',
                          save_experience_replay: Optional[bool] = False
                          ) -> None:
@@ -1090,27 +1177,40 @@ class AgentDQN():
                 experience.append(list(lists_transitions.s_t1))
 
         agent_state = {'seed': self.__seed,
+                       'is_MinAtar_env': self.__is_minatar,
                        'env_id': self.game_id,
                        'env_render_mode': self.render_mode,
+                       'environment_obj': self.env,
+                       'video_directory': self.video_direc,
                        'torch_device': str(self.device),
-                       'batch_size': self.batch_size,
-                       'start_experience_replay': self.initial_memory,
+                       'policy_model': self.dqn_policy,
+                       'target_model': self.dqn_target,
                        'discount_factor': self.gamma_disc,
                        'learning_rate': self.learn_rate,
-                       'current_exploration': self.eps_max,
-                       'initial_exploration': self.eps_min,
-                       'exploration_annealing': self.eps_dec,
                        'gradient_momentum': self.grad_mmt,
                        'square_gradient_momentum': self.grad_mmt_sqr,
                        'minimum_squared_gradient': self.grad_min_sqr,
+                       'maximum_exploration': self.eps_max,
+                       'minimum_exploration': self.eps_min,
+                       'exploration_annealing': self.eps_dec,
+                       'use_exponential_decay': self.eps_dec_exp,
+                       'policy_optimizer': self.optimizer,
                        'loss_function_used': self.loss_criterion,
-                       'number_frames_trained': self.frames_counter,
+                       'target_model_update': self.update_target_model,
                        'replay_memory_size': self.__memory_size,
-                       'frames_to_epoch_correspondence': self.epoch_ep_n,
-                       'experience_saved_as_tensors': self.save_tensors_to_memory,
+                       'batch_size': self.batch_size,
+                       'start_experience_replay': self.initial_memory,
                        'experience_replay_transitions': experience,
-                       'policy_model': self.dqn_policy,
-                       'target_model': self.dqn_target,
+                       'frames_to_epoch_correspondence': self.epoch_ep_n,
+                       'list_episode_scores': self.episodes_scores,
+                       'list_episode_losses': self.episodes_losses,
+                       'number_frames_trained': self.frames_counter,
+                       'number_epochs_trained': self.epochs_counter,
+                       'number_steps_optimize': self.steps_optimize,
+                       'number_episodes_trained': self.episode_number,
+                       'use_wandb_logging': self.wandb_logging_on,
+                       'logging_information': self.__logging_info,
+                       'experience_saved_as_tensors': self.save_tensors_to_memory,
                        }
         torch.save(agent_state, f'{base_file_name}_agent_state{postfix}.pkl')
 
@@ -1179,32 +1279,100 @@ class AgentDQN():
         if ((postfix != '') and (postfix[0] != '_')):
             postfix = '_' + postfix
         agent_state = torch.load(f'{base_file_name}_agent_state{postfix}.pkl')
+        # SEED
         self.__seed = int(agent_state['seed'])
+        # ENVIRONMENT
+        self.__is_minatar = bool(agent_state['is_MinAtar_env'])
         self.game_id = str(agent_state['env_id'])
         self.render_mode = str(agent_state['env_render_mode'])
-        self.device = torch.device(str(agent_state['torch_device']))
-        self.batch_size = int(agent_state['batch_size'])
-        self.initial_memory = int(agent_state['start_experience_replay'])
-        self.gamma_disc = float(agent_state['discount_factor'])
-        self.learn_rate = float(agent_state['learning_rate'])
-        self.eps_max = float(agent_state['current_exploration'])
-        self.eps_min = float(agent_state['initial_exploration'])
-        self.eps_dec = float(agent_state['exploration_annealing'])
-        self.grad_mmt = float(agent_state['gradient_momentum'])
-        self.grad_mmt_sqr = float(agent_state['square_gradient_momentum'])
-        self.grad_min_sqr = float(agent_state['minimum_squared_gradient'])
-        self.loss_criterion = str(agent_state['loss_function_used'])
-        self.frames_counter = int(agent_state['number_frames_trained'])
-        self.__memory_size = int(agent_state['replay_memory_size'])
-        self.epoch_ep_n = int(agent_state['frames_to_epoch_correspondence'])
-        self.save_tensors_to_memory = bool(agent_state['experience_saved_as_tensors'])
-        experience = agent_state['experience_replay_transitions']
+        self.env = agent_state['environment_obj']
+        self.action_space_n = self.env.action_space.n
+        self.video_direc = str(agent_state['video_directory'])
+        if (self.__is_minatar):
+            self.env_monitor = gym.wrappers.Monitor(MinAtarEnvRGB(self.env),
+                                                    directory=self.video_direc,
+                                                    force=True,
+                                                    video_callable=lambda episode: True
+                                                    )
+        else:
+            self.env_monitor = gym.wrappers.Monitor(self.env,
+                                                    directory=self.video_direc,
+                                                    force=True,
+                                                    video_callable=lambda episode: True
+                                                    )
+        # SETTING SEEDS
+        self.env.seed(self.__seed)
+        random.seed(self.__seed)
+        torch.manual_seed(self.__seed)
+        # SETTING TORCH DEVICE
+        self.device = torch.device('cpu')
+        if ((str(agent_state['torch_device']).lower() in ['cuda', 'gpu']) and torch.cuda.is_available()):
+            self.device = torch.device('cuda')
+        # SETTING DQN MODELS
         self.dqn_policy = agent_state['policy_model']
         if (load_target_model):
             self.dqn_target = agent_state['target_model']
+        # SETTING THE MODEL OPTIMIZER
+        self.gamma_disc = float(agent_state['discount_factor'])
+        self.learn_rate = float(agent_state['learning_rate'])
+        self.grad_mmt = float(agent_state['gradient_momentum'])
+        self.grad_mmt_sqr = float(agent_state['square_gradient_momentum'])
+        self.grad_min_sqr = float(agent_state['minimum_squared_gradient'])
+        self.eps_max = float(agent_state['maximum_exploration'])
+        self.eps_min = float(agent_state['minimum_exploration'])
+        self.eps_dec = float(agent_state['exploration_annealing'])
+        self.eps_dec_exp = bool(agent_state['use_exponential_decay'])
+        self.optimizer = agent_state['policy_optimizer']
+        self.loss_criterion = str(agent_state['loss_function_used'])
+        self.update_target_model = int(agent_state['target_model_update'])
+        # SETTING EXPERIENCE REPLAY MEMORY
+        self.__memory_size = int(agent_state['replay_memory_size'])
+        self.buffer_memory = MemoryBuffer(max_size=self.__memory_size, seed=self.__seed)
+        self.batch_size = int(agent_state['batch_size'])
+        self.initial_memory = int(agent_state['start_experience_replay'])
+        self.transition_experience = collections.namedtuple('transition_experience',
+                                                            ('s_t0', 'a_t0', 'r_t1', 's_t1')
+                                                            )
+        experience = agent_state['experience_replay_transitions']
+        # TRAINING METRICS
+        self.epoch_ep_n = int(agent_state['frames_to_epoch_correspondence'])
+        self.episodes_scores = list(agent_state['list_episode_scores'])
+        self.episodes_losses = list(agent_state['list_episode_losses'])
+        self.frames_counter = int(agent_state['number_frames_trained'])
+        self.epochs_counter = int(agent_state['number_epochs_trained'])
+        self.steps_optimize = int(agent_state['number_steps_optimize'])
+        self.episode_number = int(agent_state['number_episodes_trained'])
+        self.wandb_logging_on = bool(agent_state['use_wandb_logging'])
+        self.__logging_info = agent_state['logging_information']
+        if (self.wandb_logging_on):
+            self.logger = wandb.init(name=self.__logging_info['experiment_run_name'],
+                                     project=self.__logging_info['experiment_project_name'],
+                                     notes=self.__logging_info['experiment_run_notes'],
+                                     monitor_gym=self.env_monitor
+                                     )
+            self.logger.define_metric('Loss (t)',
+                                      step_metric='Step'
+                                      )
+            self.logger.define_metric('Avg. Loss (episodes)',
+                                      step_metric='Episode'
+                                      )
+            self.logger.define_metric('Avg. Score (per epoch)',
+                                      step_metric='Epoch'
+                                      )
+            self.logger.define_metric('Avg. Score Episodes',
+                                      step_metric='Episode'
+                                      )
+            self.logger.define_metric('Total Score (per episode)',
+                                      step_metric='Episode'
+                                      )
+            self.logger.define_metric('Exploration Probability (epsilon)',
+                                      step_metric='Step'
+                                      )
+            self.logger.watch(models=self.dqn_policy)
+
+        self.save_tensors_to_memory = bool(agent_state['experience_saved_as_tensors'])
 
         if (len(experience) == 4):
-            self.buffer_memory = MemoryBuffer(max_size=self.__memory_size, seed=self.__seed)
             for s0, a0, r1, s1 in zip(experience[0], experience[1], experience[2], experience[3]):
                 if (self.save_tensors_to_memory):
                     self.buffer_memory.insert(self.transition_experience(s0, a0, r1, s1))
