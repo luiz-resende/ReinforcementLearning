@@ -3,7 +3,6 @@ DQN-Wrappers-Env
 
 @author: [Luiz Resende Silva](https://github.com/luiz-resende)
 @date: Created on Tue Oct 19, 2021
-@version: Revised on Wed Dec 01, 2021
 
 This script contains the necessary environment class wrappers to preprocess the
 OpenAI-Gym and ALE Atari environments, as well as the MinAtar environment. The base
