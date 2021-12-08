@@ -45,7 +45,7 @@ def show_video(directory):
     -----
     If you are running this script on Windows, this function might not work because
     of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    this method, the lines 69-70 below and line 1117 inside ``evaluate_agent()`` method.
+    this method, the lines 69-70 below and line 1057 inside ``evaluate_agent()`` method.
 
     Parameters
     ----------
@@ -584,66 +584,6 @@ class AgentDQN():
                     act = act.item()
 
                 return act
-
-    def get_batch_replay(self
-                         ) -> Tuple:
-        r"""
-        Method retrieves the list of samples from buffer memory and groups them in specific batches.
-
-        Parameters
-        ----------
-        ``None``
-
-        Returns
-        -------
-        batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx : ``Tuple``
-            batch_s_t0 : ``torch.Tensor``
-                Tensor of ``torch.Size([batch_size, number_channels, frame_height, frame_width])``
-                for observed statesat time :math:`t`.
-            batch_a_t0 : ``torch.Tensor``
-                Tensor of ``torch.Size([batch_size, 1])`` for observed action taken at time :math:`t`.
-            batch_r_t1 : ``torch.Tensor``
-                Tensor of ``torch.Size([batch_size])`` for observed reward received at time :math:`t+1`.
-            batch_s_t1 : ``torch.Tensor``
-                Tensor of ``torch.Size([~batch_size, number_channels, frame_height, frame_width])``
-                for observed states at :math:`t+1`.
-            batch_indx : ``torch.Tensor``
-                Tensor of ``torch.Size([~batch_s_t1.size()])`` mapping which state frames at ```batch_s_t1```
-                are not terminal states.
-        """
-        batch_transitions = self.buffer_memory.random_samples(self.batch_size, look_start=False)
-        batch_samples = self.transition_experience(*zip(*batch_transitions))
-
-        # 1 - Grouping current states and converting to tensors - Data type needs to be either torch.float32 or torch.float
-        # 2 - Grouping actions - Data type needs to be either torch.long or torch.int64
-        # 3 - Grouping rewards - Data type needs to be either torch.float or torch.float32
-        # 4 - Grouping next states and converting to tensors - Data type needs to be either torch.float32 or torch.float
-        if (self.save_tensors_to_memory):
-            batch_s_t0 = torch.cat(batch_samples.s_t0).type(torch.float).to(self.device)
-            batch_a_t0 = torch.cat(batch_samples.a_t0).type(torch.long).to(self.device)
-            batch_r_t1 = torch.cat(batch_samples.r_t1).type(torch.float).to(self.device)
-            batch_s_t1 = torch.cat([s for s in batch_samples.s_t1 if s is not None]).type(torch.float).to(self.device)
-            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
-                                      dtype=torch.long,
-                                      device='cpu')
-        else:
-            batch_s_t0 = torch.cat([self.get_tensor(s,
-                                                    lazy_frames=False,
-                                                    dtype=torch.float) for s in batch_samples.s_t0])
-            batch_a_t0 = torch.cat([self.get_tensor([a],
-                                                    lazy_frames=False,
-                                                    dtype=torch.long) for a in batch_samples.a_t0])
-            batch_r_t1 = torch.cat([self.get_tensor(r,
-                                                    lazy_frames=False,
-                                                    dtype=torch.float) for r in batch_samples.r_t1])
-            batch_s_t1 = torch.cat([self.get_tensor(s,
-                                                    lazy_frames=True,
-                                                    dtype=torch.float) for s in batch_samples.s_t1 if s is not None])
-            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
-                                      dtype=torch.long,
-                                      device='cpu')
-
-        return batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx
 
     def optimize_model(self
                        ) -> None:
