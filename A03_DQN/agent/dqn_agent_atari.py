@@ -33,10 +33,29 @@ from dqn_wrappers_env import make_atari_env, make_minAtar_env, wrap_atari_env, L
 
 from pyvirtualdisplay import Display
 from IPython import display as ipythondisplay
-from IPython.display import clear_output
+import base64
+from pathlib import Path
 
 
 def show_video(directory):
+    """
+    Function to display agent recorded test video.
+
+    Notes
+    -----
+    If you are running this script on Windows, this function might not work because
+    of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
+    this method, the lines 69-70 below and line 1117 inside ``evaluate_agent()`` method.
+
+    Parameters
+    ----------
+    directory : str
+        Path for directory containing video files.
+
+    Returns
+    -------
+    None.
+    """
     html = []
     for mp4 in Path(directory).glob("*.mp4"):
         video_b64 = base64.b64encode(mp4.read_bytes())
@@ -45,9 +64,10 @@ def show_video(directory):
                       <source src="data:video/mp4;base64,{}" type="video/mp4" />
                  </video>'''.format(mp4, video_b64.decode('ascii')))
     ipythondisplay.display(ipythondisplay.HTML(data="<br>".join(html)))
-    
+
+
 display = Display(visible=0, size=(1400, 900))
-display.start(); 
+display.start()
 
 
 class AgentDQN():
@@ -435,6 +455,9 @@ class AgentDQN():
             self.logger.define_metric('Total Score (per episode)',
                                       step_metric='Episode'
                                       )
+            self.logger.define_metric('Avg. Steps per Episode',
+                                      step_metric='Episode'
+                                      )
             self.logger.define_metric('Exploration Probability (epsilon)',
                                       step_metric='Step'
                                       )
@@ -561,6 +584,66 @@ class AgentDQN():
                     act = act.item()
 
                 return act
+
+    def get_batch_replay(self
+                         ) -> Tuple:
+        r"""
+        Method retrieves the list of samples from buffer memory and groups them in specific batches.
+
+        Parameters
+        ----------
+        ``None``
+
+        Returns
+        -------
+        batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx : ``Tuple``
+            batch_s_t0 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size, number_channels, frame_height, frame_width])``
+                for observed statesat time :math:`t`.
+            batch_a_t0 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size, 1])`` for observed action taken at time :math:`t`.
+            batch_r_t1 : ``torch.Tensor``
+                Tensor of ``torch.Size([batch_size])`` for observed reward received at time :math:`t+1`.
+            batch_s_t1 : ``torch.Tensor``
+                Tensor of ``torch.Size([~batch_size, number_channels, frame_height, frame_width])``
+                for observed states at :math:`t+1`.
+            batch_indx : ``torch.Tensor``
+                Tensor of ``torch.Size([~batch_s_t1.size()])`` mapping which state frames at ```batch_s_t1```
+                are not terminal states.
+        """
+        batch_transitions = self.buffer_memory.random_samples(self.batch_size, look_start=False)
+        batch_samples = self.transition_experience(*zip(*batch_transitions))
+
+        # 1 - Grouping current states and converting to tensors - Data type needs to be either torch.float32 or torch.float
+        # 2 - Grouping actions - Data type needs to be either torch.long or torch.int64
+        # 3 - Grouping rewards - Data type needs to be either torch.float or torch.float32
+        # 4 - Grouping next states and converting to tensors - Data type needs to be either torch.float32 or torch.float
+        if (self.save_tensors_to_memory):
+            batch_s_t0 = torch.cat(batch_samples.s_t0).type(torch.float).to(self.device)
+            batch_a_t0 = torch.cat(batch_samples.a_t0).type(torch.long).to(self.device)
+            batch_r_t1 = torch.cat(batch_samples.r_t1).type(torch.float).to(self.device)
+            batch_s_t1 = torch.cat([s for s in batch_samples.s_t1 if s is not None]).type(torch.float).to(self.device)
+            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
+                                      dtype=torch.long,
+                                      device='cpu')
+        else:
+            batch_s_t0 = torch.cat([self.get_tensor(s,
+                                                    lazy_frames=False,
+                                                    dtype=torch.float) for s in batch_samples.s_t0])
+            batch_a_t0 = torch.cat([self.get_tensor([a],
+                                                    lazy_frames=False,
+                                                    dtype=torch.long) for a in batch_samples.a_t0])
+            batch_r_t1 = torch.cat([self.get_tensor(r,
+                                                    lazy_frames=False,
+                                                    dtype=torch.float) for r in batch_samples.r_t1])
+            batch_s_t1 = torch.cat([self.get_tensor(s,
+                                                    lazy_frames=True,
+                                                    dtype=torch.float) for s in batch_samples.s_t1 if s is not None])
+            batch_indx = torch.tensor([idx for idx, s in enumerate(batch_samples.s_t1) if s is not None],
+                                      dtype=torch.long,
+                                      device='cpu')
+
+        return batch_s_t0, batch_a_t0, batch_r_t1, batch_s_t1, batch_indx
 
     def optimize_model(self
                        ) -> None:
@@ -740,7 +823,7 @@ class AgentDQN():
 
                 if (self.wandb_logging_on and ((self.frames_counter % self.epoch_ep_n) == 0)):
                     self.epochs_counter += 1
-                    self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores),
+                    self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores[-100:]),
                                      'Epoch': self.epochs_counter}
                                     )
                 if (done):
@@ -750,7 +833,8 @@ class AgentDQN():
             self.episodes_scores.append(ep_score)
             if (self.wandb_logging_on):
                 self.logger.log({'Total Score (per episode)': self.episodes_scores[-1],
-                                 'Avg. Score Episodes': np.mean(self.episodes_scores),
+                                 'Avg. Score Episodes': np.mean(self.episodes_scores[-100:]),
+                                 'Avg. Steps per Episode': (self.frames_counter / self.episode_number),
                                  'Episode': self.episode_number}
                                 )
             if (self.frames_counter > self.initial_memory):
@@ -761,7 +845,7 @@ class AgentDQN():
                                      'Episode': self.episode_number}
                                     )
             ep_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
-                                        AvgRewardEps=np.round(np.mean(self.episodes_scores), decimals=3),
+                                        AvgRewardEps=np.round(np.mean(self.episodes_scores[-100:]), decimals=3),
                                         RewardMax=np.max(self.episodes_scores),
                                         TotalSteps=self.frames_counter,
                                         )
@@ -850,7 +934,7 @@ class AgentDQN():
 
             if (self.wandb_logging_on and ((self.frames_counter % self.epoch_ep_n) == 0)):
                 self.epochs_counter += 1
-                self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores),
+                self.logger.log({'Avg. Score (per epoch)': np.mean(self.episodes_scores[-100:]),
                                  'Epoch': self.epochs_counter}
                                 )
             if (done):
@@ -864,18 +948,19 @@ class AgentDQN():
 
                 if (self.wandb_logging_on):
                     self.logger.log({'Total Score (per episode)': self.episodes_scores[-1],
-                                     'Avg. Score Episodes': np.mean(self.episodes_scores),
+                                     'Avg. Score Episodes': np.mean(self.episodes_scores[-100:]),
+                                     'Avg. Steps per Episode': (self.frames_counter / self.episode_number),
                                      'Episode': self.episode_number}
                                     )
                 if (self.frames_counter > self.initial_memory):
                     self.episodes_losses.append(np.mean(self.loss_ep))
                     self.loss_ep = []
                     if (self.wandb_logging_on):
-                        self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses),
+                        self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses[-100:]),
                                          'Episode': self.episode_number}
                                         )
                 frames_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
-                                                AvgRewardEps=np.round(np.mean(self.episodes_scores), decimals=3),
+                                                AvgRewardEps=np.round(np.mean(self.episodes_scores[-100:]), decimals=3),
                                                 RewardMax=np.max(self.episodes_scores)
                                                 )
 
@@ -1293,6 +1378,9 @@ class AgentDQN():
                                       step_metric='Episode'
                                       )
             self.logger.define_metric('Total Score (per episode)',
+                                      step_metric='Episode'
+                                      )
+            self.logger.define_metric('Avg. Steps per Episode',
                                       step_metric='Episode'
                                       )
             self.logger.define_metric('Exploration Probability (epsilon)',
