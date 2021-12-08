@@ -3,14 +3,13 @@ DQN-Memory-Buffer
 
 @author: [Luiz Resende Silva](https://github.com/luiz-resende)
 @date: Created on Wed Oct 20, 2021
-@version: Revised on Tue Nov 23, 2021
 
 Creates a container aimed to store transition experiences for the Deep Q-Network algorithm. Such
 object class has build-in functions to facilitate the storing the sampling processes required while
 implementing the algorithm to train a Reinforcement Learning agent.
 
-Revision Notes
---------------
+Implementation Notes:
+---------------------
 After extensive tests of time efficiency for the different operations implemented, the class
 ``MemoryBufferDeque`` was improved. However, given the time required for collections.deque
 indexing is O(n), a second class object was created, now implementing a list instead, which
