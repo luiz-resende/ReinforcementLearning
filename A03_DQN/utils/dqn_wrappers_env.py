@@ -10,11 +10,6 @@ OpenAI-Gym and ALE Atari environments, as well as the MinAtar environment. The b
 code was extracted from ``baselines.common.atari_wrappers`` and modified to
 clean-up the code and include new methods and classes.
 
-Revision Notes
---------------
-Added functionalities to some classes, such as ``LazyFrames``, and designed a
-class wrapper for the MinAtar environment.
-
 """
 from typing import Any, Dict, List, Optional, Tuple, Union
 from collections import deque
