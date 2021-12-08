@@ -7,8 +7,8 @@ DQN-Atari-Agent
 This script implements a Reinforcement Learning agent that executes the DQN
 algorithm, training the agent in the ALE Atari environment.
 
-Resources
----------
+Resources:
+----------
 Bellemare et. al. (2013) -> https://jair.org/index.php/jair/article/view/10819/25823
 Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
 Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
