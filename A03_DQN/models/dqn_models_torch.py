@@ -7,13 +7,8 @@ DQN-Model
 
 Creates the neural network model used for the Deep Q-Network algorithm.
 
-Revision Notes
---------------
-The network parameters were all setup as functions of the construction arguments
-to facilitate the modification of the network and the test of different configurations.
-
-Resources
----------
+Resources:
+----------
 Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
 Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
 Young and Tian (2019) -> https://arxiv.org/pdf/1903.03176.pdf
