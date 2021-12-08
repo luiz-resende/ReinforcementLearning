@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 DQN-Wrappers-Env
 
@@ -607,7 +606,8 @@ class MinAtarEnvRGB(gym.ObservationWrapper, gym.Wrapper, gym.Env):
     """
     A Gym wrapper around the BaseEnv for MinAtar environment.
 
-    This wrapper converts the n-channel states to RGB.
+    This wrapper converts the n-channel states to RGB. It also allows frame rescaling
+    and rendering in ``render_mode='human'`` (as well as ``gym.wrappers.Monitor``).
     """
 
     metadata = {'render.modes': ['human', 'rgb_array', 'array']}
