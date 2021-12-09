@@ -31,7 +31,7 @@ from dqn_memory_buffer import MemoryBuffer
 from dqn_models_torch import DQNModel
 from dqn_wrappers_env import make_atari_env, make_minAtar_env, wrap_atari_env, LazyFrames, MinAtarEnvRGB
 
-from pyvirtualdisplay import Display  # comment-out if running on Windows
+from pyvirtualdisplay import Display
 from IPython import display as ipythondisplay
 import base64
 from pathlib import Path
@@ -50,7 +50,8 @@ def show_video(directory):
     -----
     If you are running this script on Windows, this function might not work because
     of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    this method, the lines 70-71 below and line 1075 inside ``evaluate_agent()`` method.
+    the line 45 above, the lines 70-71 below and ensure that argument ``show_test_video``
+    (inside class method ``evaluate_agent()``) is set to ``False``.
 
     Returns
     -------
@@ -1019,7 +1020,8 @@ class AgentDQN():
                        render: Optional[bool] = False,
                        render_mode: Optional[str] = 'human',
                        print_episodic_score: Optional[bool] = False,
-                       finish_logger: Optional[bool] = False
+                       finish_logger: Optional[bool] = False,
+                       show_test_video: Optional[bool] = False
                        ) -> None:
         r"""
         Method to evaluate trained agent.
@@ -1037,6 +1039,8 @@ class AgentDQN():
         finish_logger : ``bool``, optional
             Whether or not to call ``wandb.finish()`` method and close the logger.
             The default is ``False``.
+        show_test_video : ``bool``, optional
+            Whether or not to show video to display. The default is ``False``.
 
         Returns
         -------
@@ -1072,7 +1076,8 @@ class AgentDQN():
         self.env_monitor.close()
         if (self.wandb_logging_on and finish_logger):
             self.logger.finish()
-        show_video(self.video_direc)
+        if (show_test_video):
+            show_video(self.video_direc)
 
     def save_dqn_models(self,
                         path: Optional[str] = r'./saved_models/',
