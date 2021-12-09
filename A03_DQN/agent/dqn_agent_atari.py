@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 DQN-Atari-Agent
 
@@ -52,7 +51,7 @@ def show_video(directory):
     -----
     If you are running this script on Windows, this function might not work because
     of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    this method, the lines 71-72 below and line 1073 inside ``evaluate_agent()`` method.
+    this method, the lines 70-71 below and line 1072 inside ``evaluate_agent()`` method.
 
     Returns
     -------
@@ -1018,7 +1017,7 @@ class AgentDQN():
 
     def evaluate_agent(self,
                        number_episodes: Optional[int] = 50,
-                       render: Optional[bool] = True,
+                       render: Optional[bool] = False,
                        render_mode: Optional[str] = 'human',
                        finish_logger: Optional[bool] = False
                        ) -> None:
