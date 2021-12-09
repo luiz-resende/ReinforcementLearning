@@ -50,7 +50,7 @@ def show_video(directory):
     -----
     If you are running this script on Windows, this function might not work because
     of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    this method, the lines 70-71 below and line 1072 inside ``evaluate_agent()`` method.
+    this method, the lines 70-71 below and line 1075 inside ``evaluate_agent()`` method.
 
     Returns
     -------
@@ -1018,6 +1018,7 @@ class AgentDQN():
                        number_episodes: Optional[int] = 50,
                        render: Optional[bool] = False,
                        render_mode: Optional[str] = 'human',
+                       print_episodic_score: Optional[bool] = False,
                        finish_logger: Optional[bool] = False
                        ) -> None:
         r"""
@@ -1031,6 +1032,8 @@ class AgentDQN():
             Flag to whether or not render episode. The default is ``True``.
         render_mode : ``str``, optional
             Episode rendering mode. The default is ``'human'``.
+        print_episodic_score : ``bool``, optional
+            Whether or not to print the episode's score at each episode. The default is ``False``.
         finish_logger : ``bool``, optional
             Whether or not to call ``wandb.finish()`` method and close the logger.
             The default is ``False``.
@@ -1059,7 +1062,8 @@ class AgentDQN():
 
                 if (d_t1):
                     episodes_scores_eval.append(score_episode_eval)
-                    print(f"Finished Episode {(e + 1)} with reward {score_episode_eval}")
+                    if (print_episodic_score):
+                        print(f"Finished Episode {(e + 1)} with reward {score_episode_eval}")
                     break
 
         print(f'Final average reward {np.round(np.mean(episodes_scores_eval), decimals=3)} +/- '
