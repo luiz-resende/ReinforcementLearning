@@ -1116,7 +1116,7 @@ class AgentDQN():
         if ((postfix != '') and (postfix[0] != '_')):
             postfix = '_' + postfix
         if (self.buffer_memory.size > 100000):
-            self.buffer_memory = MemoryBuffer(data=self.buffer_memory.tolist()[-100000:], max_size=1000000)
+            self.buffer_memory = MemoryBuffer(data=self.buffer_memory.tolist()[-100000:], capacity=1000000)
         lists_transitions = self.transition_experience(*zip(*self.buffer_memory.tolist()))
         experience = []
         if (save_experience_replay):
@@ -1282,7 +1282,7 @@ class AgentDQN():
         self.update_target_model = int(agent_state['target_model_update'])
         # SETTING EXPERIENCE REPLAY MEMORY
         self.__memory_size = int(agent_state['replay_memory_size'])
-        self.buffer_memory = MemoryBuffer(max_size=self.__memory_size, seed=self.__seed)
+        self.buffer_memory = MemoryBuffer(capacity=self.__memory_size, seed=self.__seed)
         self.batch_size = int(agent_state['batch_size'])
         self.initial_memory = int(agent_state['start_experience_replay'])
         self.transition_experience = collections.namedtuple('transition_experience',
