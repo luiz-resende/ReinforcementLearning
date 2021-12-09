@@ -50,8 +50,8 @@ def show_video(directory):
     -----
     If you are running this script on Windows, this function might not work because
     of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    the line 45 above, the lines 70-71 below and ensure that argument ``show_test_video``
-    (inside class method ``evaluate_agent()``) is set to ``False``.
+    the line 45 above and ensure that argument ``show_test_video`` inside class method
+    ``evaluate_agent()`` is set to ``False``.
 
     Returns
     -------
@@ -65,10 +65,6 @@ def show_video(directory):
                       <source src="data:video/mp4;base64,{}" type="video/mp4" />
                  </video>'''.format(mp4, video_b64.decode('ascii')))
     ipythondisplay.display(ipythondisplay.HTML(data="<br>".join(html)))
-
-
-display = Display(visible=0, size=(1400, 900))
-display.start()
 
 
 class AgentDQN():
@@ -1077,6 +1073,8 @@ class AgentDQN():
         if (self.wandb_logging_on and finish_logger):
             self.logger.finish()
         if (show_test_video):
+            display = Display(visible=0, size=(1400, 900))
+            display.start()
             show_video(self.video_direc)
 
     def save_dqn_models(self,
