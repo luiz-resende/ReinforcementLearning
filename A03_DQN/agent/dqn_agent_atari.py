@@ -1,14 +1,16 @@
+# -*- coding: utf-8 -*-
 """
 DQN-Atari-Agent
 
 @author: [Luiz Resende Silva](https://github.com/luiz-resende)
 @date: Created on Tue Oct 19, 2021
+@version: Revised on Fri Dec 03, 2021
 
 This script implements a Reinforcement Learning agent that executes the DQN
 algorithm, training the agent in the ALE Atari environment.
 
-Resources:
-----------
+Resources
+---------
 Bellemare et. al. (2013) -> https://jair.org/index.php/jair/article/view/10819/25823
 Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
 Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
@@ -31,7 +33,7 @@ from dqn_memory_buffer import MemoryBuffer
 from dqn_models_torch import DQNModel
 from dqn_wrappers_env import make_atari_env, make_minAtar_env, wrap_atari_env, LazyFrames, MinAtarEnvRGB
 
-from pyvirtualdisplay import Display
+from pyvirtualdisplay import Display  # comment-out if running on Windows
 from IPython import display as ipythondisplay
 import base64
 from pathlib import Path
@@ -41,16 +43,16 @@ def show_video(directory):
     """
     Function to display agent recorded test video.
 
-    Notes
-    -----
-    If you are running this script on Windows, this function might not work because
-    of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    this method, the lines 69-70 below and line 1057 inside ``evaluate_agent()`` method.
-
     Parameters
     ----------
     directory : str
         Path for directory containing video files.
+
+    Notes
+    -----
+    If you are running this script on Windows, this function might not work because
+    of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
+    this method, the lines 71-72 below and line 1073 inside ``evaluate_agent()`` method.
 
     Returns
     -------
@@ -243,6 +245,9 @@ class AgentDQN():
     self.episode_number : ``int``
     self.wandb_logging_on : ``bool``
     self.logger : ``sdk.wandb_run.Run``
+        NOTE: whenever the training/evaluation is done and the agent will not
+        be used anymore, ``self.logger.finish()`` should be called. This option
+        is given inside the ``train_agent()`` and ``evaluate_agent()`` methods.
 
     Methods
     -------
@@ -915,7 +920,8 @@ class AgentDQN():
                     save_tensors_in_memory_buffer: Optional[bool] = False,
                     load_agent_state: Optional[bool] = False,
                     load_agent_info: Optional[Union[None, Tuple]] = None,
-                    save_iterruption: Optional[bool] = True
+                    save_iterruption: Optional[bool] = True,
+                    finish_logger: Optional[bool] = False
                     ) -> Union[Sequence, None]:
         r"""
         Method to call agent's pipeline training.
@@ -955,6 +961,10 @@ class AgentDQN():
         save_iterruption : ``bool``, optional
             Whether or not to save the agents current state of training if it is interrupted by some exception.
             The default is ``True``.
+        finish_logger : ``bool``, optional
+            Whether or not to call ``wandb.finish()`` method and close the logger. Note: if the method
+            ``self.evaluate_agent()`` is going to be used, then ``finish_logger=False`` should be used,
+            or else an exception will be thrown. The default is ``False``.
 
         Returns
         -------
@@ -987,7 +997,7 @@ class AgentDQN():
                                           )
 
             self.env.close()
-            if (self.wandb_logging_on):
+            if (self.wandb_logging_on and finish_logger):
                 self.logger.finish()
 
             return self.episodes_scores
@@ -1001,7 +1011,7 @@ class AgentDQN():
                                       save_experience_replay=True)
 
             self.env.close()
-            if (self.wandb_logging_on):
+            if (self.wandb_logging_on and finish_logger):
                 self.logger.finish()
 
             return None
@@ -1009,7 +1019,8 @@ class AgentDQN():
     def evaluate_agent(self,
                        number_episodes: Optional[int] = 50,
                        render: Optional[bool] = True,
-                       render_mode: Optional[str] = 'human'
+                       render_mode: Optional[str] = 'human',
+                       finish_logger: Optional[bool] = False
                        ) -> None:
         r"""
         Method to evaluate trained agent.
@@ -1022,6 +1033,9 @@ class AgentDQN():
             Flag to whether or not render episode. The default is ``True``.
         render_mode : ``str``, optional
             Episode rendering mode. The default is ``'human'``.
+        finish_logger : ``bool``, optional
+            Whether or not to call ``wandb.finish()`` method and close the logger.
+            The default is ``False``.
 
         Returns
         -------
@@ -1036,7 +1050,7 @@ class AgentDQN():
             d_t1 = False
 
             while (not d_t1):
-                a_t0 = self.dqn_policy.forward(s_t0).max(1)[1].item()
+                a_t0 = self.dqn_policy.forward(s_t0.to(self.device)).max(1)[1].view(1, 1).to('cpu').item()
                 s_t1, r_t1, d_t1, _ = self.env_monitor.step(a_t0)
                 s_t0 = self.get_tensor(s_t1)
                 score_episode_eval += r_t1
@@ -1054,6 +1068,8 @@ class AgentDQN():
               + f'{np.round(np.std(episodes_scores_eval), decimals=3)}')
 
         self.env_monitor.close()
+        if (self.use_wandb_logging and finish_logger):
+            self.logger.finish()
         show_video(self.video_direc)
 
     def save_dqn_models(self,
