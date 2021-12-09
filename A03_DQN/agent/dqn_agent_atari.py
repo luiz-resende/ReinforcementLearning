@@ -1066,7 +1066,7 @@ class AgentDQN():
               + f'{np.round(np.std(episodes_scores_eval), decimals=3)}')
 
         self.env_monitor.close()
-        if (self.use_wandb_logging and finish_logger):
+        if (self.wandb_logging_on and finish_logger):
             self.logger.finish()
         show_video(self.video_direc)
 
