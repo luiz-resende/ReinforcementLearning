@@ -3,12 +3,11 @@ DQN-Model
 
 @author: [Luiz Resende Silva](https://github.com/luiz-resende)
 @date: Created on Wed Oct 20, 2021
-@version: Revised on Mon Nov 15, 2021
 
 Creates the neural network model used for the Deep Q-Network algorithm.
 
-Resources:
-----------
+Resources
+---------
 Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
 Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
 Young and Tian (2019) -> https://arxiv.org/pdf/1903.03176.pdf
@@ -26,7 +25,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
     Class object implementing a DQN neural network using Pytorch mmodule.
 
     Creates a deep q-network with either one of the predefined architectures from Mnih et al.(2013),
-    Mnih et al. (2015) or Young and Tian (2019).
+    Mnih et al. (2015), Young and Tian (2019) or Mnih et al. (2015) with an additional conv. layer.
 
     Parameters
     ----------
@@ -47,8 +46,10 @@ class DQNModel(torch.nn.Module):  # ModelDQN
     number_actions : ``int``, optional
         Number of actions in the 'env.action_space.n'. The default is 4.
     agent_architecture : ``int``, optional
-        The type of architecture, 1 for two convolutional layers (Mnih et al., 2013), 2 for three convolutional layers
-        (Mnih et al., 2015) or 3 for one convolutional layer (Young and Tian, 2019). The default is 1.
+        The type of architecture. ``1`` for two convolutional layers (Mnih et al., 2013),
+        ``2`` for three convolutional layers (Mnih et al., 2015), ``3`` for one convolutional
+        layer (Young and Tian, 2019), or ``4`` for four convolutional layers (modified
+        Mnih et al., 2015). The default is 1.
     use_batch_norm : ``bool``, optional
         Whether or not use batch normalization between layers. The default is ``False``.
     scale_batch_input : ``float``, optional
@@ -122,6 +123,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                              self.padding
                              )]
         relu_linear = "ReLU_3"
+
         if ((self.agent_architecture == 1) and self.use_batch_norm):  # Architecture 1 with batch normalization
             self.conv_layers = torch.nn.Sequential(
                 collections.OrderedDict(
@@ -141,6 +143,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                         ("Norm_1", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
                         ("ReLU_2", torch.nn.ReLU())
                     ]))
+
         elif (self.agent_architecture == 2):  # Architecture 2 (Three convolutional layers)
             if (self.use_batch_norm):  # With batch normalization
                 self.conv_layers = torch.nn.Sequential(
@@ -204,6 +207,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  self.padding
                                  )]
             relu_linear = "ReLU_4"
+
         elif (self.agent_architecture == 3):  # Architecture 3 (One convolutional layer)
             if (self.use_batch_norm):  # With batch normalization
                 self.conv_layers = torch.nn.Sequential(
@@ -233,6 +237,87 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  self.padding
                                  )]
             relu_linear = "ReLU_2"
+
+        elif (self.agent_architecture == 4):  # Architecture 4 (Four convolutional layers)
+            if (self.use_batch_norm):  # With batch normalization
+                self.conv_layers = torch.nn.Sequential(
+                    collections.OrderedDict(
+                        [
+                            ("Conv_1", torch.nn.Conv2d(in_channels=self.in_channels,
+                                                       out_channels=self.out_channel,
+                                                       kernel_size=self.kernel,
+                                                       stride=self.stride,
+                                                       padding=self.padding)),
+                            ("Norm_1", torch.nn.BatchNorm2d(self.out_channel)),
+                            ("ReLU_1", torch.nn.ReLU()),
+                            ("Conv_2", torch.nn.Conv2d(in_channels=self.out_channel,
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int(self.kernel[0] / 2), int(self.kernel[1] / 2)),
+                                                       stride=(int(self.stride[0] / 2), int(self.stride[1] / 2)),
+                                                       padding=self.padding)),
+                            ("Norm_2", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("ReLU_2", torch.nn.ReLU()),
+                            ("Conv_3", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int((self.kernel[0] / 2) - 1), int((self.kernel[1] / 2) - 1)),
+                                                       stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                                       padding=self.padding)),
+                            ("Norm_3", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("ReLU_3", torch.nn.ReLU()),
+                            ("Conv_4", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int(self.kernel[0] / 4), int(self.kernel[1] / 4)),
+                                                       stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                                       padding=self.padding)),
+                            ("Norm_4", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("ReLU_4", torch.nn.ReLU())
+                        ]))
+            else:  # Without batch normalization
+                self.conv_layers = torch.nn.Sequential(
+                    collections.OrderedDict(
+                        [
+                            ("Conv_1", torch.nn.Conv2d(in_channels=self.in_channels,
+                                                       out_channels=self.out_channel,
+                                                       kernel_size=self.kernel,
+                                                       stride=self.stride,
+                                                       padding=self.padding)),
+                            ("ReLU_1", torch.nn.ReLU()),
+                            ("Conv_2", torch.nn.Conv2d(in_channels=self.out_channel,
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int(self.kernel[0] / 2), int(self.kernel[1] / 2)),
+                                                       stride=(int(self.stride[0] / 2), int(self.stride[1] / 2)),
+                                                       padding=self.padding)),
+                            ("ReLU_2", torch.nn.ReLU()),
+                            ("Conv_3", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int((self.kernel[0] / 2) - 1), int((self.kernel[1] / 2) - 1)),
+                                                       stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                                       padding=self.padding)),
+                            ("ReLU_3", torch.nn.ReLU()),
+                            ("Conv_4", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
+                                                       out_channels=int(self.out_channel * 2),
+                                                       kernel_size=(int(self.kernel[0] / 4), int(self.kernel[1] / 4)),
+                                                       stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                                       padding=self.padding)),
+                            ("ReLU_4", torch.nn.ReLU())
+                        ]))
+            self.params_conv = [(self.kernel,  # Convolutional layer 1
+                                 self.stride,
+                                 self.padding
+                                 ),
+                                ((int(self.kernel[0] / 2), int(self.kernel[1] / 2)),  # Convolutional layer 2
+                                 (int(self.stride[0] / 2), int(self.stride[1] / 2)),
+                                 self.padding
+                                 ),
+                                ((int((self.kernel[0] / 2) - 1), int((self.kernel[1] / 2) - 1)),  # Convolutional layer 3
+                                 (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                 self.padding
+                                 ),
+                                ((int(self.kernel[0] / 4), int(self.kernel[1] / 4)),  # Convolutional layer 4
+                                 (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
+                                 self.padding
+                                 )]
+            relu_linear = "ReLU_5"
 
         # Calculating output shape in the last convolutional layer to know number of input features in first linear layer
         for k, s, p in self.params_conv:
