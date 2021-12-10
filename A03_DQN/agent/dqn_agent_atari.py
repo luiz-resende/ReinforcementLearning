@@ -1066,7 +1066,7 @@ class AgentDQN():
                         print(f"Episode {(e + 1)} score: {score_episode_eval}")
                     break
 
-        print(f'[Final average score] {np.round(np.mean(episodes_scores_eval), decimals=3)} +/- '
+        print(f'[Final average score] : {np.round(np.mean(episodes_scores_eval), decimals=3)} +/- '
               + f'{np.round(np.std(episodes_scores_eval), decimals=3)}')
 
         self.env_monitor.close()
