@@ -1133,7 +1133,12 @@ class AgentDQN():
         -------
         ``None``
         """
-        base_file_name = base_file_name + '_' + time.strftime('%Y-%m-%d_%Hh%M', time.localtime())
+        if ((base_file_name != '') and (base_file_name[-1] != '_')):
+            base_file_name = base_file_name + '_' + time.strftime('%Y-%m-%d_%Hh%M', time.localtime())
+        elif ((base_file_name != '') and (base_file_name[-1] == '_')):
+            base_file_name = base_file_name + time.strftime('%Y-%m-%d_%Hh%M', time.localtime())
+        else:
+            base_file_name = time.strftime('%Y-%m-%d_%Hh%M', time.localtime())
         if ((postfix != '') and (postfix[0] != '_')):
             postfix = '_' + postfix
         experience = []
