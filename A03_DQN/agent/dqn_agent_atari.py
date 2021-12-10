@@ -1063,10 +1063,10 @@ class AgentDQN():
                 if (d_t1):
                     episodes_scores_eval.append(score_episode_eval)
                     if (print_episodic_score):
-                        print(f"Finished Episode {(e + 1)} with reward {score_episode_eval}")
+                        print(f"Episode {(e + 1)} score: {score_episode_eval}")
                     break
 
-        print(f'Final average reward {np.round(np.mean(episodes_scores_eval), decimals=3)} +/- '
+        print(f'[Final average score] {np.round(np.mean(episodes_scores_eval), decimals=3)} +/- '
               + f'{np.round(np.std(episodes_scores_eval), decimals=3)}')
 
         self.env_monitor.close()
