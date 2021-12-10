@@ -1152,7 +1152,6 @@ class AgentDQN():
                 experience.append(list(lists_transitions.a_t0))
                 experience.append(list(lists_transitions.r_t1))
                 experience.append(list(lists_transitions.s_t1))
-            del memory_buffer_list
 
         agent_state = {'seed': self.__seed,
                        'is_MinAtar_env': self.__is_minatar,
