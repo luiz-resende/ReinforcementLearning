@@ -1136,11 +1136,12 @@ class AgentDQN():
         base_file_name = base_file_name + '_' + time.strftime('%Y-%m-%d_%Hh%M', time.localtime())
         if ((postfix != '') and (postfix[0] != '_')):
             postfix = '_' + postfix
-        if (self.buffer_memory.size > 100000):
-            self.buffer_memory = MemoryBuffer(data=self.buffer_memory.tolist()[-100000:], capacity=1000000)
-        lists_transitions = self.transition_experience(*zip(*self.buffer_memory.tolist()))
         experience = []
         if (save_experience_replay):
+            if (self.buffer_memory.size > 100000):
+                lists_transitions = self.transition_experience(*zip(*self.buffer_memory[-100000:]))
+            else:
+                lists_transitions = self.transition_experience(*zip(*self.buffer_memory.tolist()))
             if (not self.save_tensors_to_memory):
                 experience.append(np.array(lists_transitions.s_t0, dtype='uint8'))
                 experience.append(np.array(lists_transitions.a_t0, dtype='uint8'))
@@ -1151,6 +1152,7 @@ class AgentDQN():
                 experience.append(list(lists_transitions.a_t0))
                 experience.append(list(lists_transitions.r_t1))
                 experience.append(list(lists_transitions.s_t1))
+            del memory_buffer_list
 
         agent_state = {'seed': self.__seed,
                        'is_MinAtar_env': self.__is_minatar,
