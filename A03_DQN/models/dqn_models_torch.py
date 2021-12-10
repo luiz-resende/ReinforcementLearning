@@ -323,7 +323,9 @@ class DQNModel(torch.nn.Module):  # ModelDQN
         for k, s, p in self.params_conv:
             self.conv_out_shape = self.__get_convolved_size(input_shape=self.conv_out_shape, kernel=k, stride=s, padding=p)
 
-        self.in_features_linear = (int(self.out_channel * 2) * self.conv_out_shape[0] * self.conv_out_shape[1])
+        self.in_features_linear = int((self.out_channel * 2) * self.conv_out_shape[0] * self.conv_out_shape[1])
+        if (self.agent_architecture == 3):
+            self.in_features_linear = int(self.out_channel * self.conv_out_shape[0] * self.conv_out_shape[1])
 
         # SEQUENTIAL LINEAR LAYERS
         self.linear_layers = torch.nn.Sequential(
