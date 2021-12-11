@@ -1157,6 +1157,7 @@ class AgentDQN():
                 experience.append(list(lists_transitions.a_t0))
                 experience.append(list(lists_transitions.r_t1))
                 experience.append(list(lists_transitions.s_t1))
+            del lists_transitions
 
         agent_state = {'seed': self.__seed,
                        'is_MinAtar_env': self.__is_minatar,
@@ -1196,7 +1197,7 @@ class AgentDQN():
                        }
         torch.save(agent_state, f'{base_file_name}_agent_state{postfix}.pkl')
 
-        del experience, lists_transitions, agent_state, base_file_name
+        del experience, agent_state, base_file_name
 
     def load_dqn_models(self,
                         path_name: Optional[str] = r'./saved_models/',
