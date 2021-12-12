@@ -122,6 +122,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                              (int(self.stride[0] / 2), int(self.stride[1] / 2)),
                              self.padding
                              )]
+        norm_linear = "Norm_3"
         relu_linear = "ReLU_3"
 
         if ((self.agent_architecture == 1) and self.use_batch_norm):  # Architecture 1 with batch normalization
@@ -133,14 +134,14 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                                    kernel_size=self.kernel,
                                                    stride=self.stride,
                                                    padding=self.padding)),
-                        ("Norm_1", torch.nn.BatchNorm2d(self.out_channel)),
+                        ("Norm_1", torch.nn.BatchNorm2d(num_features=self.out_channel)),
                         ("ReLU_1", torch.nn.ReLU()),
                         ("Conv_2", torch.nn.Conv2d(in_channels=self.out_channel,
                                                    out_channels=int(self.out_channel * 2),
                                                    kernel_size=(int(self.kernel[0] / 2), int(self.kernel[1] / 2)),
                                                    stride=(int(self.stride[0] / 2), int(self.stride[1] / 2)),
                                                    padding=self.padding)),
-                        ("Norm_1", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                        ("Norm_2", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                         ("ReLU_2", torch.nn.ReLU())
                     ]))
 
@@ -154,21 +155,21 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                                        kernel_size=self.kernel,
                                                        stride=self.stride,
                                                        padding=self.padding)),
-                            ("Norm_1", torch.nn.BatchNorm2d(self.out_channel)),
+                            ("Norm_1", torch.nn.BatchNorm2d(num_features=self.out_channel)),
                             ("ReLU_1", torch.nn.ReLU()),
                             ("Conv_2", torch.nn.Conv2d(in_channels=self.out_channel,
                                                        out_channels=int(self.out_channel * 2),
                                                        kernel_size=(int(self.kernel[0] / 2), int(self.kernel[1] / 2)),
                                                        stride=(int(self.stride[0] / 2), int(self.stride[1] / 2)),
                                                        padding=self.padding)),
-                            ("Norm_2", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("Norm_2", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                             ("ReLU_2", torch.nn.ReLU()),
                             ("Conv_3", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
                                                        out_channels=int(self.out_channel * 2),
                                                        kernel_size=(int((self.kernel[0] / 2) - 1), int((self.kernel[1] / 2) - 1)),
                                                        stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                                        padding=self.padding)),
-                            ("Norm_3", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("Norm_3", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                             ("ReLU_3", torch.nn.ReLU())
                         ]))
             else:  # Without batch normalization
@@ -206,6 +207,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                  self.padding
                                  )]
+            norm_linear = "Norm_4"
             relu_linear = "ReLU_4"
 
         elif (self.agent_architecture == 3):  # Architecture 3 (One convolutional layer)
@@ -218,7 +220,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                                        kernel_size=self.kernel,
                                                        stride=self.stride,
                                                        padding=self.padding)),
-                            ("Norm_1", torch.nn.BatchNorm2d(self.out_channel)),
+                            ("Norm_1", torch.nn.BatchNorm2d(num_features=self.out_channel)),
                             ("ReLU_1", torch.nn.ReLU())
                         ]))
             else:  # Without batch normalization
@@ -236,6 +238,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  self.stride,
                                  self.padding
                                  )]
+            norm_linear = "Norm_2"
             relu_linear = "ReLU_2"
 
         elif (self.agent_architecture == 4):  # Architecture 4 (Four convolutional layers)
@@ -248,28 +251,28 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                                        kernel_size=self.kernel,
                                                        stride=self.stride,
                                                        padding=self.padding)),
-                            ("Norm_1", torch.nn.BatchNorm2d(self.out_channel)),
+                            ("Norm_1", torch.nn.BatchNorm2d(num_features=self.out_channel)),
                             ("ReLU_1", torch.nn.ReLU()),
                             ("Conv_2", torch.nn.Conv2d(in_channels=self.out_channel,
                                                        out_channels=int(self.out_channel * 2),
                                                        kernel_size=(int(self.kernel[0] / 2), int(self.kernel[1] / 2)),
                                                        stride=(int(self.stride[0] / 2), int(self.stride[1] / 2)),
                                                        padding=self.padding)),
-                            ("Norm_2", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("Norm_2", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                             ("ReLU_2", torch.nn.ReLU()),
                             ("Conv_3", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
                                                        out_channels=int(self.out_channel * 2),
                                                        kernel_size=(int((self.kernel[0] / 2) - 1), int((self.kernel[1] / 2) - 1)),
                                                        stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                                        padding=self.padding)),
-                            ("Norm_3", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("Norm_3", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                             ("ReLU_3", torch.nn.ReLU()),
                             ("Conv_4", torch.nn.Conv2d(in_channels=int(self.out_channel * 2),
                                                        out_channels=int(self.out_channel * 2),
                                                        kernel_size=(int(self.kernel[0] / 4), int(self.kernel[1] / 4)),
                                                        stride=(int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                                        padding=self.padding)),
-                            ("Norm_4", torch.nn.BatchNorm2d(int(self.out_channel * 2))),
+                            ("Norm_4", torch.nn.BatchNorm2d(num_features=int(self.out_channel * 2))),
                             ("ReLU_4", torch.nn.ReLU())
                         ]))
             else:  # Without batch normalization
@@ -317,6 +320,7 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                  self.padding
                                  )]
+            norm_linear = "Norm_5"
             relu_linear = "ReLU_5"
 
         # Calculating output shape in the last convolutional layer to know number of input features in first linear layer
@@ -337,6 +341,17 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                     ("Linear_2", torch.nn.Linear(in_features=self.out_features_linear,
                                                  out_features=self.number_actions))
                 ]))
+        if (self.use_batch_norm):
+            self.linear_layers = torch.nn.Sequential(
+                collections.OrderedDict(
+                    [
+                        ("Linear_1", torch.nn.Linear(in_features=self.in_features_linear,
+                                                     out_features=self.out_features_linear)),
+                        (norm_linear, torch.nn.BatchNorm1d(num_features=self.out_features_linear)),
+                        (relu_linear, torch.nn.ReLU()),
+                        ("Linear_2", torch.nn.Linear(in_features=self.out_features_linear,
+                                                     out_features=self.number_actions))
+                    ]))
 
     def __get_shapes(self,
                      argument: Any
