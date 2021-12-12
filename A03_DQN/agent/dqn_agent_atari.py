@@ -13,6 +13,7 @@ Bellemare et. al. (2013) -> https://jair.org/index.php/jair/article/view/10819/2
 Mnih et al.(2013) -> https://arxiv.org/pdf/1312.5602.pdf
 Mnih et al.(2015) -> https://www.nature.com/articles/nature14236.pdf
 Young and Tian (2019) -> https://arxiv.org/pdf/1903.03176.pdf
+Cho, Kang and Yoo (2017) -> https://arxiv.org/pdf/1711.06424.pdf
 
 """
 import collections
@@ -49,8 +50,8 @@ def show_video(directory):
     Notes
     -----
     If you are running this script on Windows, this function might not work because
-    of the ``pyvirtualdisplay`` module. To circunvent this problem, just comment-out
-    the line 45 above and ensure that argument ``show_test_video`` inside class method
+    of the ``pyvirtualdisplay`` calling ``xvfb`` module. To circunvent this problem,
+    just ensure that the argument ``show_test_video`` inside class method
     ``evaluate_agent()`` is set to ``False``.
 
     Returns
@@ -181,8 +182,12 @@ class AgentDQN():
         It should contain the following keys and their values:
             memory_capacity : ``int``
                 Maximum size of the replay memory from which sample experience. For example: 1000000.
-            batch_size : ``int``
-                Size of experience batch sampled from replay memory. For example: 32.
+            batch_size : ``Union[int, Sequence]``
+                Size of experience batch sampled from replay memory. It can be a single value (e.g., 32)
+                to be used in the entire training process or can be a list of possible batch sizes to
+                be used throughout. If a list is passed, at the end of each episode after the optimization
+                of policy network starts, a batch size will be selected using a framework based on
+                Multi-armed Grandient Bandits.
             initial_memory : ``int``
                 Initial number of actions taken using uniform random policy to build initial
                 experience replay memory. For example: 50000.
@@ -204,48 +209,60 @@ class AgentDQN():
 
     Arguments
     ---------
-    self.__seed : ``int``
-    self.game_id : ``str``
-    self.render_mode : ``str``
-    self.env : ``gym.envs``
-    self.env_monitor : ``gym.envs``
-    self.action_space_n : ``int``
-    self.video_direc : ``str``
-    self.device : ``torch.device``
-    self.__memory_size : ``int``
-    self.buffer_memory : ``__main__.MemoryBuffer``
-    self.batch_size : ``int``
-    self.initial_memory : ``int``
-    self.gamma_disc : ``float``
-    self.learn_rate : ``float``
-    self.grad_mom : ``float``
-    self.grad_mmt_sqr : ``float``
-    self.grad_min_sqr : ``float``
-    self.eps_max : ``float``
-    self.eps_min : ``float``
-    self.eps_dec_interval : ``int``
-    self.eps_dec : ``float``
-    self.eps_dec_exp : ``bool``
-    self.update_target_model : ``int``
-    self.dqn_policy : ``torch.nn.Module``
-    self.dqn_target : ``torch.nn.Module``
-    self.optimizer : ``torch.optim``
-    self.loss_criterion : ``torch.nn.functional``
-    self.epoch_ep_n : ``int``
-    self.episodes_scores : ``list``
-    self.episodes_losses : ``list``
-    self.frames_counter : ``int``
-    self.epochs_counter : ``int``
-    self.steps_optimize : ``int``
-    self.episode_number : ``int``
-    self.wandb_logging_on : ``bool``
-    self.logger : ``sdk.wandb_run.Run``
+    __seed : ``int``,
+    __is_minatar : ``bool``,
+    render_mode : ``str``,
+    game_id : ``str``,
+    env : ``gym.envs``,
+    action_space_n = ``int``,
+    video_direc : ``str``,
+    env_monitor ``gym.envs``,
+    device = ``torch.device``,
+    dqn_policy : ``torch.nn.Module``,
+    dqn_target : ``torch.nn.Module``,
+    gamma_disc : ``float``,
+    learn_rate : ``float``,
+    grad_mmt : ``float``,
+    grad_mmt_sqr : ``float``,
+    grad_min_sqr : ``float``,
+    optimizer : ``torch.optim``,
+    loss_criterion : ``str``,
+    eps_max : ``float``,
+    eps_min : ``float``,
+    eps_dec_interval : ``int``,
+    eps_dec : ``float``,
+    eps_dec_exp : ``bool``,
+    update_target_model : ``int``,
+    __memory_size : `` int``,
+    buffer_memory : ``__main__.MemoryBuffer``,
+    initial_memory : ``int``,
+    transition_experience : ``collections.namedtuple``,
+    __is_rmgd : ``bool``,
+    batch_size : ``Union[int, Sequence]``,
+    batch_set : ``np.ndarray``,
+    __batch_set_size : ``int``,
+    __batch_set_size_log : ``float``,
+    batch_prob : ``np.ndarray``,
+    __batch_rng : ``random._generator.Generator``,
+    epoch_ep_n : ``int``,
+    episodes_scores : ``list``,
+    episodes_losses : ``list``,
+    loss_ep : ``list``,
+    frames_counter : ``int``,
+    epochs_counter : ``int``,
+    steps_optimize : ``int``,
+    episode_number : ``int``,
+    __logging_info : ``dict``,
+    wandb_logging_on : ``bool``,
+    logger : ``sdk.wandb_run.Run``,
         NOTE: whenever the training/evaluation is done and the agent will not
-        be used anymore, ``self.logger.finish()`` should be called. This option
+        be used anymore, ``logger.finish()`` should be called. This option
         is given inside the ``train_agent()`` and ``evaluate_agent()`` methods.
 
     Methods
     -------
+    ``update_batch_size()``:
+        Method to updates the batch size based on new probabilities for batches in the batch set.
     ``seed()``:
         Method sets the global seed and random number generator.
     ``get_tensor()``:
@@ -416,11 +433,25 @@ class AgentDQN():
         # SETTING EXPERIENCE REPLAY MEMORY
         self.__memory_size = configuration_memory_replay['memory_capacity']
         self.buffer_memory = MemoryBuffer(capacity=self.__memory_size, seed=self.__seed)
-        self.batch_size = configuration_memory_replay['sample_batch_size']
         self.initial_memory = configuration_memory_replay['initial_memory']
         self.transition_experience = collections.namedtuple('transition_experience',
                                                             ('s_t0', 'a_t0', 'r_t1', 's_t1')
                                                             )
+        if (isinstance(configuration_memory_replay['sample_batch_size'], int)):
+            self.__is_rmgd = False
+            self.batch_size = configuration_memory_replay['sample_batch_size']
+        else:
+            if (len(configuration_memory_replay['sample_batch_size']) == 1):
+                self.__is_rmgd = False
+                self.batch_size = configuration_memory_replay['sample_batch_size'][0]
+            else:
+                self.__is_rmgd = True
+                self.batch_set = np.array(configuration_memory_replay['sample_batch_size'], dtype='int')
+                self.__batch_set_size = len(self.batch_set)
+                self.__batch_set_size_log = np.log(self.__batch_set_size)
+                self.batch_prob = (np.ones(self.__batch_set_size, dtype='float') / self.__batch_set_size)
+                self.__batch_set_rng = np.random.default_rng(self.__seed)
+                self.batch_size = self.__batch_set_rng.choice(self.batch_set, p=self.batch_prob)
         # SETTING CONTAINERS FOR STORING TRAINING METRICS
         self.epoch_ep_n = epoch_correspondence
         self.episodes_scores = []
@@ -461,7 +492,108 @@ class AgentDQN():
             self.logger.define_metric('Exploration Probability (epsilon)',
                                       step_metric='Step'
                                       )
+            self.logger.define_metric('Batch size',
+                                      step_metric='Episode'
+                                      )
             self.logger.watch(models=self.dqn_policy)
+
+    def update_batch_size(self,
+                          number_optimizing_steps: int,
+                          training_episodes: Optional[bool] = False
+                          ) -> None:
+        r"""
+        Method to updates the batch size based on new probabilities for batches in the batch set.
+
+        The method updates the batch size used to collect samples from the experience replay memory.
+        The batch size selection is done using a framework based on gradient bandits algorithm, where
+        the actions are the different batch sizes available, each with a probability of being selected.
+        The reward from selecting a given batch size is calculated by the reward function that gives a
+        reward of ``0`` if the episodic average loss decreases, or ``-1`` if it increases. This method
+        class two internal methods, ``batch_size_reward()`` and ``batch_size_select()``, to calculate
+        loss reward, the new batch probabilites and the new batch size.
+
+        The new probability of the current batch size is calculated using a parameter
+        :math:`\beta`, which relates to the parameter :math:`\alpha` in Gradient Bandits.
+        The hyper-parameter :math:`\beta` is not passed to the method, it is calculated
+        based on the number of different batch sizes available and the total length
+        of the training process, here called :math:`\tau`. In this agent's implementation,
+        the batch size is selected at each episode, since the reward function for
+        batch sizing is based on the episodic average loss. Therefore, the length
+        :math:`\tau` is given as the total number of episodes in the training process.
+        **NOTE**: if the training is performed using total number of frames, the number
+        of episodes is calculated based on the current average number of time steps
+        per episode. The parameter :math:`\beta` is then calculated as below, where
+        :math:`|B|` is the size of the set of available batches.
+
+                :math:`\beta` = :math:`\sqrt{\frac{\log{|B|}}{(|B| * \tau)}}`
+
+        The new probability :math:`\hat{p}_{i}` of the current batch size :math:`i`
+        is then calculated as shown below. The probabilities for all other
+        batch sizes remain the same, later being scaled by the sum of all new
+        probabilities :math:`\sum_{j}{\hat{p}_{j}},\forall{j\in{|B|}}`.
+
+                :math:`\hat{p}_{i}` = :math:`p_{i}` * :math:`e^{(\beta r_{loss} / p_{i})}`
+
+        Parameters
+        ----------
+        number_optimizing_steps : ``int``
+            The number of either frames or episodes used for the training process.
+            If ``training_episodes=True``, the total number of training episodes must
+            be passed, otherwise the total number of training frames.
+        training_episodes : ``bool``, optional
+            Whether or not the training is being performed using episodic schedule.
+            The default is ``False``.
+
+        Return
+        ------
+        ``None``.
+        """
+        def batch_size_reward() -> float:
+            r"""
+            Internal function to return loss reward.
+
+            Returns
+            -------
+            loss_reward : float
+                The reward for using the current batch size.
+            """
+            loss_reward = -1.0
+            if (self.episodes_losses[-1] < self.episodes_losses[-2]):
+                loss_reward = 0.0
+            return loss_reward
+
+        def batch_size_select(tau: int
+                              ) -> int:
+            r"""
+            Internal function to calculate the new probabilities and select new batch size.
+
+            Parameters
+            ----------
+            tau : int
+                The length of the training process.
+
+            Returns
+            -------
+            new_batch_size : int
+                The new batch size to sample transition experiences from memory.
+            """
+            beta = np.sqrt((self.__batch_set_size_log / (self.__batch_set_size * tau)))  # Parameter beta
+            index = np.where(self.batch_set == self.batch_size)[0].item()  # Index of current batch size
+
+            probs = np.copy(self.batch_prob)  # Copying probabilities
+            probs[index] = (self.batch_prob[index] * np.exp(((beta * batch_size_reward()) / self.batch_prob[index])))
+            self.batch_prob = (probs / np.sum(probs))  # Saving new batch size probabilities
+
+            # Select new batch size based on updated probabilities
+            new_batch_size = self.__batch_set_rng.choice(self.batch_set, p=self.batch_prob)
+
+            return new_batch_size
+
+        tau = number_optimizing_steps
+        if (not training_episodes):
+            tau = int(number_optimizing_steps / (self.frames_counter / self.episode_number))
+
+        self.batch_size = batch_size_select(tau)
 
     def seed(self,
              seed: Optional[Union[int, None]] = None
@@ -782,8 +914,13 @@ class AgentDQN():
                 self.loss_ep = []
                 if (self.wandb_logging_on):
                     self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses),
+                                     'Batch size': self.batch_size,
                                      'Episode': self.episode_number}
                                     )
+                if (self.__is_rmgd and (len(self.episodes_losses) > 1)):
+                    self.update_batch_size(number_optimizing_steps=max_number_episodes,
+                                           training_episodes=True
+                                           )
             ep_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
                                         AvgRewardEps=np.round(np.mean(self.episodes_scores[-100:]), decimals=3),
                                         RewardMax=np.max(self.episodes_scores),
@@ -820,7 +957,7 @@ class AgentDQN():
         """
         ep_score = 0.0
 
-        frames_progress_bar = tqdm.tqdm(range(max_number_training_frames),
+        frames_progress_bar = tqdm.tqdm(range(self.frames_counter, max_number_training_frames),
                                         desc=r'[Training AgentDQN] ',
                                         unit=' frames')
         s_t0 = self.env.reset()
@@ -897,8 +1034,13 @@ class AgentDQN():
                     self.loss_ep = []
                     if (self.wandb_logging_on):
                         self.logger.log({'Avg. Loss (episodes)': np.mean(self.episodes_losses[-100:]),
+                                         'Batch size': self.batch_size,
                                          'Episode': self.episode_number}
                                         )
+                    if (self.__is_rmgd and (len(self.episodes_losses) > 1)):
+                        self.update_batch_size(number_optimizing_steps=max_number_training_frames,
+                                               training_episodes=False
+                                               )
                 frames_progress_bar.set_postfix(AvgSteps=np.round((self.frames_counter / self.episode_number), decimals=3),
                                                 AvgRewardEps=np.round(np.mean(self.episodes_scores[-100:]), decimals=3),
                                                 RewardMax=np.max(self.episodes_scores)
@@ -1159,6 +1301,12 @@ class AgentDQN():
                 experience.append(list(lists_transitions.s_t1))
             del lists_transitions
 
+        batch_set = []
+        batch_prob = []
+        if (self.__is_rmgd):
+            batch_set = self.batch_set
+            batch_prob = self.batch_prob
+
         agent_state = {'seed': self.__seed,
                        'is_MinAtar_env': self.__is_minatar,
                        'env_id': self.game_id,
@@ -1181,7 +1329,10 @@ class AgentDQN():
                        'loss_function_used': self.loss_criterion,
                        'target_model_update': self.update_target_model,
                        'replay_memory_size': self.__memory_size,
+                       'is_resizable_batch_size': self.__is_rmgd,
                        'batch_size': self.batch_size,
+                       'batch_set': batch_set,
+                       'batch_prob': batch_prob,
                        'start_experience_replay': self.initial_memory,
                        'experience_replay_transitions': experience,
                        'frames_to_epoch_correspondence': self.epoch_ep_n,
@@ -1197,7 +1348,7 @@ class AgentDQN():
                        }
         torch.save(agent_state, f'{base_file_name}_agent_state{postfix}.pkl')
 
-        del experience, agent_state, base_file_name
+        del experience, agent_state, base_file_name, batch_set, batch_prob
 
     def load_dqn_models(self,
                         path_name: Optional[str] = r'./saved_models/',
@@ -1311,11 +1462,18 @@ class AgentDQN():
         # SETTING EXPERIENCE REPLAY MEMORY
         self.__memory_size = int(agent_state['replay_memory_size'])
         self.buffer_memory = MemoryBuffer(capacity=self.__memory_size, seed=self.__seed)
-        self.batch_size = int(agent_state['batch_size'])
         self.initial_memory = int(agent_state['start_experience_replay'])
         self.transition_experience = collections.namedtuple('transition_experience',
                                                             ('s_t0', 'a_t0', 'r_t1', 's_t1')
                                                             )
+        self.__is_rmgd = bool(agent_state['is_resizable_batch_size'])
+        self.batch_size = int(agent_state['batch_size'])
+        if (self.__is_rmgd):
+            self.batch_set = np.array(agent_state['batch_set'], dtype='int')
+            self.batch_prob = np.array(agent_state['batch_prob'], dtype='float')
+            self.__batch_set_size = len(self.batches_set)
+            self.__batch_set_size_log = np.log(self.__batch_set_size)
+            self.__batch_set_rng = np.random.default_rng(self.__seed)
         experience = agent_state['experience_replay_transitions']
         # TRAINING METRICS
         self.epoch_ep_n = int(agent_state['frames_to_epoch_correspondence'])
@@ -1353,6 +1511,9 @@ class AgentDQN():
                                       )
             self.logger.define_metric('Exploration Probability (epsilon)',
                                       step_metric='Step'
+                                      )
+            self.logger.define_metric('Batch size',
+                                      step_metric='Episode'
                                       )
             self.logger.watch(models=self.dqn_policy)
 
