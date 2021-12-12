@@ -122,7 +122,6 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                              (int(self.stride[0] / 2), int(self.stride[1] / 2)),
                              self.padding
                              )]
-        norm_linear = "Norm_3"
         relu_linear = "ReLU_3"
 
         if ((self.agent_architecture == 1) and self.use_batch_norm):  # Architecture 1 with batch normalization
@@ -207,7 +206,6 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                  self.padding
                                  )]
-            norm_linear = "Norm_4"
             relu_linear = "ReLU_4"
 
         elif (self.agent_architecture == 3):  # Architecture 3 (One convolutional layer)
@@ -238,7 +236,6 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  self.stride,
                                  self.padding
                                  )]
-            norm_linear = "Norm_2"
             relu_linear = "ReLU_2"
 
         elif (self.agent_architecture == 4):  # Architecture 4 (Four convolutional layers)
@@ -320,7 +317,6 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                                  (int((self.stride[0] / 2) - 1), int((self.stride[1] / 2) - 1)),
                                  self.padding
                                  )]
-            norm_linear = "Norm_5"
             relu_linear = "ReLU_5"
 
         # Calculating output shape in the last convolutional layer to know number of input features in first linear layer
@@ -341,17 +337,6 @@ class DQNModel(torch.nn.Module):  # ModelDQN
                     ("Linear_2", torch.nn.Linear(in_features=self.out_features_linear,
                                                  out_features=self.number_actions))
                 ]))
-        if (self.use_batch_norm):
-            self.linear_layers = torch.nn.Sequential(
-                collections.OrderedDict(
-                    [
-                        ("Linear_1", torch.nn.Linear(in_features=self.in_features_linear,
-                                                     out_features=self.out_features_linear)),
-                        (norm_linear, torch.nn.BatchNorm1d(num_features=self.out_features_linear)),
-                        (relu_linear, torch.nn.ReLU()),
-                        ("Linear_2", torch.nn.Linear(in_features=self.out_features_linear,
-                                                     out_features=self.number_actions))
-                    ]))
 
     def __get_shapes(self,
                      argument: Any
