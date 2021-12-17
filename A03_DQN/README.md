@@ -8,7 +8,7 @@ Among the tests conducted, we analyzed the experience replay memory buffer capac
 
 To use the ``AgentDQN`` and its training pipeline, one needs Python3 installed and ensure the ``pip`` is updated[^1]. The model is implemented using ``Pytorch``, hence its installation is also required. All other modules required can be found on the first code cell in the Python notebook with containing the training pipeline
 
-[^1]:  Alternativelly, the training pipeline already has a cell that can be executed to update ``pip``.
+[^1]:  The training pipeline already has a cell that can be executed to update ``pip`` and install the required modules.
 
 ## Use and Reproduction
 
