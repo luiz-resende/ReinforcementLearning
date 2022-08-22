@@ -32,7 +32,7 @@ The rest of the code is OS-independent and should run smoothly in any system wit
 
 If you use the available code or the results from it in your research, please cite the following:
 
-Resende Silva, L. Talotsing, G. P. M. (2021). Analysis of Deep Q-Network for Playing Atari. École Polytechnique de Montréal.
+Resende Silva, L., & Talotsing, G. P. M. (2021). Analysis of Deep Q-Network for Playing Atari. École Polytechnique de Montréal.
 
 In BibTeX format:
 
